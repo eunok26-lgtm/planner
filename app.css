@@ -178,7 +178,7 @@ button { cursor: pointer; border: none; background: none; }
 /* 절기·기념일 줄. 내용이 없어도 높이를 차지해야 옆 칸 막대와 높이가 맞습니다. */
 .mcell .dt { font-size: 9px; color: var(--term); line-height: 11px; height: 11px;
              flex: 0 0 11px; margin-top: 1px;
-             overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+             overflow: hidden; text-overflow: clip; white-space: nowrap; }
 .mcell.hol .dn, .mcell.hol .dt { color: var(--hol); }
 .mcell.sun .dn { color: var(--sun); }
 .mcell.sat .dn { color: var(--sat); }
@@ -186,13 +186,16 @@ button { cursor: pointer; border: none; background: none; }
 .pill {
   font-size: 10px; line-height: 1.35; padding: 1px 4px; border-radius: 4px;
   background: color-mix(in srgb, var(--accent) 14%, transparent);
-  color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: var(--ink); overflow: hidden; text-overflow: clip; white-space: nowrap;
 }
 .pill.timed::before { content: attr(data-t) " "; color: var(--accent); font-weight: 700; }
 .pill:not(.bar) { touch-action: none; cursor: grab; }   /* 끌어서 순서 바꾸기 */
 
 /* 줄 높이를 고정해야 옆 칸의 막대와 정확히 같은 높이에 옵니다 */
-.pill, .evspacer { height: 15px; line-height: 13px; flex: 0 0 15px; min-width: 0; max-width: 100%; }
+.pill, .evspacer { height: 15px; line-height: 13px; flex: 0 0 15px; min-width: 0; }
+/* 여러 날 막대는 옆 칸으로 넘겨 이어붙여야 하므로 max-width 를 걸지 않습니다.
+   (걸면 음수 여백만큼 늘어나지 못해 칸마다 띄엄띄엄 끊겨 보입니다) */
+.pill:not(.bar), .evspacer { max-width: 100%; }
 .evspacer { visibility: hidden; }
 
 /* ---- 여러 날에 걸친 일정 : 칸을 넘어 한 줄로 이어 그립니다 ---- */
@@ -253,7 +256,7 @@ button { cursor: pointer; border: none; background: none; }
   opacity: .45; margin-left: -2px;
 }
 .wline .grip:active { cursor: grabbing; }
-.wline .wx { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wline .wx { overflow: hidden; text-overflow: clip; white-space: nowrap; }
 .wline.empty { color: var(--mute); }
 .wline.empty::after { content: "＋"; font-size: 13px; color: transparent; }
 .wline.empty:hover::after { color: var(--mute); }
@@ -317,7 +320,7 @@ button { cursor: pointer; border: none; background: none; }
 }
 .ev .src.m { background: var(--src-m); }
 .ev .src.w { background: var(--src-w); }
-.ev .x { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ev .x { flex: 1; min-width: 0; overflow: hidden; text-overflow: clip; white-space: nowrap; }
 .empty-note { color: var(--mute); font-size: 13px; padding: 10px 2px; }
 
 /* 오늘 목록 — 왼쪽에 색 띠 */
@@ -338,7 +341,12 @@ button { cursor: pointer; border: none; background: none; }
 }
 .task.done .box { background: var(--term); border-color: var(--term); color: #fff; }
 .task.done .lbl { text-decoration: line-through; color: var(--mute); }
-.task .lbl { flex: 1; min-width: 0; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.task .lbl {
+  flex: 1; min-width: 0; text-align: left; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap;
+  background: none; border: none; padding: 2px 0; cursor: pointer; font: inherit; color: inherit;
+}
+.task .lbl:active { opacity: .6; }
 .task .del { color: var(--mute); font-size: 17px; padding: 0 2px; }
 
 /* ---------------- 쇼핑 ---------------- */

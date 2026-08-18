@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" href="icons/icon-192.png">
-<link rel="stylesheet" href="app.css?v=23">
+<link rel="stylesheet" href="app.css?v=25">
 </head>
 <body>
 
@@ -177,6 +177,22 @@
   </div>
 </div>
 
+<!-- ============ 할 일 · 쇼핑 항목 수정 ============ -->
+<div id="tsheet" class="sheet-back" hidden>
+  <div class="sheet-card" role="dialog" aria-modal="true">
+    <div class="sheet-head">
+      <button class="mini ghost" id="ts-cancel">취소</button>
+      <strong id="ts-title">항목 수정</strong>
+      <button class="mini solid" id="ts-save">저장</button>
+    </div>
+    <label class="fld"><span>내용</span>
+      <input id="ts-text" type="text" autocomplete="off"></label>
+    <label class="fld" id="ts-cat-wrap"><span>분류</span>
+      <select id="ts-cat"></select></label>
+    <button class="btn-danger" id="ts-delete">삭제</button>
+  </div>
+</div>
+
 <!-- ============ 더보기 메뉴 ============ -->
 <div id="menu" class="sheet-back" hidden>
   <div class="sheet-card" role="dialog" aria-modal="true">
@@ -207,8 +223,8 @@
 <div id="toast" class="toast" hidden></div>
 
 <script src="https://accounts.google.com/gsi/client" async defer></script>
-<script src="config.js?v=23"></script>
-<script src="korean-calendar.js?v=23"></script>
-<script src="app.js?v=23"></script>
+<script src="config.js?v=25"></script>
+<script src="korean-calendar.js?v=25"></script>
+<script src="app.js?v=25"></script>
 </body>
 </html>

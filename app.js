@@ -619,6 +619,13 @@ async function toggleTask(which, task) {
             { method: 'PATCH', body: JSON.stringify(body) });
   await loadTasks();
 }
+async function updateTask(which, id, patch) {
+  const l = await ensureLists();
+  await api(`${TASK_BASE}/lists/${l[which]}/tasks/${id}`,
+            { method: 'PATCH', body: JSON.stringify(patch) });
+  await loadTasks();
+}
+
 async function removeTask(which, id) {
   const l = await ensureLists();
   await api(`${TASK_BASE}/lists/${l[which]}/tasks/${id}`, { method: 'DELETE' });
@@ -951,7 +958,7 @@ function renderToday() {
 function taskRow(which, t) {
   return `<div class="task ${t.done ? 'done' : ''}" data-list="${which}" data-id="${t.id}">
       <button class="box" data-act="toggle">✓</button>
-      <span class="lbl">${esc(t.title)}</span>
+      <button class="lbl" data-act="edit">${esc(t.title)}</button>
       <button class="del" data-act="del" aria-label="삭제">×</button>
     </div>`;
 }
@@ -1192,6 +1199,47 @@ async function migrateWeeklyEvents() {
   store.loadedMonths.clear();
   await loadMonth(state.anchor, true);
   return done;
+}
+
+/* ---------------- 할 일 · 쇼핑 항목 수정 ---------------- */
+let editingTask = null;          // { which, id }
+
+function openTaskSheet(which, id) {
+  const t = (which === 'todo' ? store.todo : store.shop).find(x => x.id === id);
+  if (!t) return;
+  editingTask = { which, id };
+
+  $('#ts-title').textContent = which === 'shop' ? '쇼핑 항목 수정' : '할 일 수정';
+  $('#ts-text').value = t.title;
+
+  const isShop = (which === 'shop');
+  $('#ts-cat-wrap').hidden = !isShop;
+  if (isShop) {
+    const cats = CFG.SHOP_CATEGORIES;
+    $('#ts-cat').innerHTML = cats.map(c => `<option>${esc(c)}</option>`).join('');
+    $('#ts-cat').value = cats.includes(t.notes) ? t.notes : cats[cats.length - 1];
+  }
+
+  $('#tsheet').hidden = false;
+  setTimeout(() => $('#ts-text').focus(), 60);
+}
+function closeTaskSheet() { $('#tsheet').hidden = true; editingTask = null; }
+
+async function saveTaskSheet() {
+  if (!editingTask) return;
+  const { which, id } = editingTask;
+  const title = $('#ts-text').value.trim();
+  if (!title) { toast('내용을 입력해 주세요'); return; }
+
+  const patch = { title };
+  if (which === 'shop') patch.notes = $('#ts-cat').value;
+
+  closeTaskSheet();
+  await guard(async () => {
+    await updateTask(which, id, patch);
+    renderAll();
+    toast('수정했습니다');
+  }, '저장 중…');
 }
 
 /* ---------------- 반복 일정 관리 (일괄 삭제) ---------------- */
@@ -1562,6 +1610,8 @@ function wire() {
     if (!t) return;
     if (btn.dataset.act === 'toggle') {
       guard(async () => { await toggleTask(which, t); renderAll(); }, '반영 중…');
+    } else if (btn.dataset.act === 'edit') {
+      openTaskSheet(which, id);
     } else {
       guard(async () => { await removeTask(which, id); renderAll(); }, '삭제 중…');
     }
@@ -1592,6 +1642,18 @@ function wire() {
       for (const t of done) await removeTask('shop', t.id);
       renderAll();
     }, '정리 중…');
+  };
+
+  /* 할 일 · 쇼핑 항목 수정창 */
+  $('#ts-cancel').onclick = closeTaskSheet;
+  $('#ts-save').onclick   = saveTaskSheet;
+  $('#ts-text').onkeydown = e => { if (e.key === 'Enter') saveTaskSheet(); };
+  $('#tsheet').onclick = e => { if (e.target.id === 'tsheet') closeTaskSheet(); };
+  $('#ts-delete').onclick = () => {
+    if (!editingTask || !confirm('이 항목을 삭제할까요?')) return;
+    const { which, id } = editingTask;
+    closeTaskSheet();
+    guard(async () => { await removeTask(which, id); renderAll(); toast('삭제했습니다'); }, '삭제 중…');
   };
 
   /* 편집 시트 */
