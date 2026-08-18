@@ -660,7 +660,31 @@ async function guard(fn, busyMsg = '동기화 중…') {
 /* ============================================================
    5. 월간
    ============================================================ */
-const MONTH_ROWS = 4;          // 한 칸에 보여줄 최대 줄 수
+let MONTH_ROWS = 4;            // 한 칸에 보여줄 일정 줄 수 (화면 높이에 맞춰 자동 조정)
+
+/** 화면 높이를 재서 한 칸에 몇 줄까지 넣을 수 있는지 계산합니다.
+    폰처럼 세로가 짧으면 줄 수를 줄여 월 전체가 한 화면에 들어오게 합니다. */
+function fitMonthRows(weekRows) {
+  const view = $('#view-month'), dow = $('#month-dow');
+  const h = view.clientHeight - (dow.offsetHeight || 0);
+  if (!h || h < 60) return MONTH_ROWS;              // 아직 화면에 없으면 이전 값 유지
+  const cs = getComputedStyle($('#month-grid'));
+  const rowh  = parseFloat(cs.getPropertyValue('--rowh'))  || 17;
+  const headh = parseFloat(cs.getPropertyValue('--headh')) || 33;
+  const cell = h / weekRows;
+  const grid = $('#month-grid');
+
+  // 한 줄도 못 넣을 만큼 낮은 화면(폰 가로모드 등)에서는
+  // 절기·기념일 줄을 접어서 일정 한 줄이라도 들어가게 합니다.
+  grid.classList.remove('tight');
+  let n = Math.floor((cell - headh) / rowh);
+  if (n < 1) {
+    grid.classList.add('tight');
+    const tight = parseFloat(getComputedStyle(grid).getPropertyValue('--headh-tight')) || 18;
+    n = Math.floor((cell - tight) / rowh);
+  }
+  return Math.max(1, Math.min(6, n));
+}
 
 /** 한 주(7칸) 안에서 여러 날짜에 걸친 일정에 줄 번호를 배정합니다.
     같은 일정이 모든 칸에서 같은 높이에 와야 막대가 끊기지 않고 이어져 보입니다. */
@@ -711,7 +735,7 @@ function layoutWeek(days) {
   };
 }
 
-function renderMonth() {
+function renderMonth(pass = 0) {
   const a = state.anchor;
   $('#title').textContent = MONTH_TITLE(a);
   $('#subtitle').textContent = '';
@@ -732,11 +756,23 @@ function renderMonth() {
   const lead = Math.round((first - gridStart) / 86400000);
   const cells = Math.ceil((lead + daysInMonth) / 7) * 7;
 
+  const weekRows = cells / 7;
+  MONTH_ROWS = fitMonthRows(weekRows);
+  $('#month-grid').style.setProperty('--rows', weekRows);
+
   let html = '';
   for (let w = 0; w * 7 < cells; w++) {
     const days = [];
     for (let i = 0; i < 7; i++) days.push(addDays(gridStart, w * 7 + i));
     const lay = layoutWeek(days);            // 여러 날 일정에 줄(lane)을 배정
+
+    // "+N" 표시도 한 줄을 차지하므로, 넘치는 날이 있으면 한 줄을 미리 비워 둡니다.
+    // 막대 높이가 어긋나지 않도록 이 판단은 날짜별이 아니라 주 단위로 합니다.
+    const need = ds => lay.shownLanes + eventsFor(ds, 'm1').length + lay.hiddenAt(ds);
+    // 줄이 한 줄뿐인 아주 낮은 화면에서는 "+N" 대신 일정을 보여주는 편이 낫습니다
+    const reserve = MONTH_ROWS > 1 && days.some(d => need(ymd(d)) > MONTH_ROWS);
+    const cap = reserve ? MONTH_ROWS - 1 : MONTH_ROWS;
+    const laneShow = Math.min(lay.shownLanes, cap);
 
     days.forEach((d, i) => {
       const ds = ymd(d);
@@ -746,7 +782,7 @@ function renderMonth() {
 
       // ① 여러 날 막대 — 주 안에서 같은 줄에 오도록 빈 자리는 자리표로 채웁니다
       let rows = '';
-      for (let ln = 0; ln < lay.shownLanes; ln++) {
+      for (let ln = 0; ln < laneShow; ln++) {
         const e = lay.at(ds, ln);
         if (!e) { rows += '<span class="evspacer"></span>'; continue; }
         const contL = e.sd < ds, contR = e.ed > ds;
@@ -764,14 +800,16 @@ function renderMonth() {
 
       // ② 하루짜리 일정 — 남은 줄만큼
       const singles = eventsFor(ds, 'm1');
-      const room = Math.max(0, MONTH_ROWS - lay.shownLanes);
+      const room = Math.max(0, cap - laneShow);
       const shown = singles.slice(0, room);
       shown.forEach(e => {
         rows += `<span class="pill ${e.allDay ? '' : 'timed'}${colorCls(e)}" data-id="${e.id}"
                        ${e.time ? `data-t="${e.time}"` : ''}>${esc(e.text)}</span>`;
       });
 
-      const hidden = (singles.length - shown.length) + lay.hiddenAt(ds);
+      const hidden = (singles.length - shown.length)
+                   + lay.hiddenAt(ds)
+                   + Math.max(0, lay.shownLanes - laneShow);
       const wbtn = weekly.length
         ? `<button class="wbtn" data-date="${ds}" title="위클리에 적은 일정 ${weekly.length}건">W${
             weekly.length > 1 ? `<sup>${weekly.length}</sup>` : ''}</button>`
@@ -781,11 +819,18 @@ function renderMonth() {
                           ${sameDay(d, today) ? 'is-today' : ''}" data-date="${ds}">
           <div class="dhead"><span class="dn">${d.getDate()}</span>${wbtn}</div>
           <div class="dt">${esc(label)}</div>
-          <div class="evs">${rows}${hidden > 0 ? `<span class="more">+${hidden}</span>` : ''}</div>
+          <div class="evs">${rows}${(reserve && hidden > 0) ? `<span class="more">+${hidden}</span>` : ''}</div>
         </div>`;
     });
   }
   $('#month-grid').innerHTML = html;
+
+  // 그린 뒤 실제 높이로 다시 확인합니다. 처음 계산이 어긋났으면(화면 회전·주소창
+  // 접힘 등) 한 번만 다시 그려 맞춥니다. 이벤트가 안 와도 스스로 바로잡힙니다.
+  if (pass === 0) {
+    const again = fitMonthRows(weekRows);
+    if (again !== MONTH_ROWS) { MONTH_ROWS = again; renderMonth(1); }
+  }
 }
 
 /* ============================================================
@@ -1194,6 +1239,8 @@ function showView(v) {
     (v === 'month' || v === 'week') ? 'visible' : 'hidden';
   $('#today-btn').style.visibility = (v === 'month' || v === 'week') ? 'visible' : 'hidden';
   renderAll();
+  // 화면에 실제로 그려진 뒤 높이를 다시 재서 줄 수를 맞춥니다
+  if (v === 'month') requestAnimationFrame(() => renderMonth());
   syncCurrentView();
 }
 
@@ -1520,12 +1567,24 @@ function wire() {
 
   /* 다른 기기에서 바꾼 내용 반영 — 앱으로 돌아올 때 새로고침 */
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && accessToken) {
-      store.loadedMonths.clear();
-      syncCurrentView();
+    if (document.visibilityState === 'visible') {
+      if (state.view === 'month') renderMonth();
+      if (accessToken) { store.loadedMonths.clear(); syncCurrentView(); }
     }
   });
   window.addEventListener('online', () => syncCurrentView());
+
+  /* 화면 크기·방향이 바뀌면 월간 줄 수를 다시 맞춥니다.
+     resize 이벤트가 안 오는 경우(주소창 접힘 등)까지 잡으려고 ResizeObserver 도 함께 씁니다. */
+  let resizeTimer;
+  const refit = () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => { if (state.view === 'month') renderMonth(); }, 120);
+  };
+  window.addEventListener('resize', refit);
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', refit);
+  window.addEventListener('orientationchange', refit);
+  if (window.ResizeObserver) new ResizeObserver(refit).observe($('#view-month'));
 }
 
 /* ============================================================

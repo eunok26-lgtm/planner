@@ -136,10 +136,20 @@ button { cursor: pointer; border: none; background: none; }
 .dow-head .sun { color: var(--sun); }
 .dow-head .sat { color: var(--sat); }
 
-.month-grid { display: grid; grid-template-columns: repeat(7, 1fr); }
+/* 월간은 한 화면에 다 들어오게 — 남은 높이를 줄 수만큼 나눠 씁니다 */
+#view-month { display: flex; flex-direction: column; height: 100%; padding: 0; }
+.month-grid {
+  --rowh: 17px;      /* 일정 한 줄 높이 (알약 15 + 간격 2) */
+  --headh: 33px;       /* 날짜 숫자줄 + 절기줄 + 여백 */
+  --headh-tight: 20px; /* 절기줄을 접었을 때 */
+  flex: 1; min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  grid-template-rows: repeat(var(--rows, 6), minmax(0, 1fr));
+}
 .mcell {
   --cellpx: 4px;                       /* 칸 좌우 여백 — 막대를 이어붙일 때 이 값을 씁니다 */
-  min-height: 92px; padding: 5px var(--cellpx); border-bottom: 1px solid var(--line);
+  min-height: 0; padding: 5px var(--cellpx); border-bottom: 1px solid var(--line);
   border-right: 1px solid var(--line); text-align: left;
   display: flex; flex-direction: column; gap: 2px;
 }
@@ -411,11 +421,43 @@ body.is-dragging { user-select: none; -webkit-user-select: none; cursor: grabbin
 
 /* ---------------- 데스크톱 ---------------- */
 @media (min-width: 900px) {
-  .mcell { --cellpx: 6px; min-height: 118px; padding: 7px var(--cellpx); }
+  .mcell { --cellpx: 6px; padding: 7px var(--cellpx); }
   .pill { font-size: 11px; }
   .week-grid { min-width: 0; }
   .tabbar { order: -1; border-top: none; border-bottom: 1px solid var(--line); }
   .app { }
+}
+
+/* 화면이 아주 낮을 때 — 절기 줄을 접어 일정 자리를 확보합니다 */
+.month-grid.tight .mcell .dt { display: none; }
+.month-grid.tight .mcell { padding-top: 2px; }
+.month-grid.tight .mcell .dhead { min-height: 13px; }
+.month-grid.tight .mcell .dn { font-size: 11px; }
+
+/* ---------------- 좁은 화면(폰) ---------------- */
+@media (max-width: 600px) {
+  .topbar { gap: 4px; padding: 8px 8px; padding-top: calc(8px + env(safe-area-inset-top, 0px)); }
+  .topbar-title { flex: 1 1 auto; min-width: 0; overflow: hidden; }
+  .topbar-title strong { font-size: 15px; overflow: hidden; text-overflow: ellipsis; }
+  .topbar-title span { font-size: 10px; }
+  .nav-btn { width: 26px; height: 26px; font-size: 20px; }
+  .chip { padding: 4px 8px; font-size: 11px; }
+  .sync { font-size: 10px; }
+
+  .dow-head { padding: 5px 0; }
+  .dow-head div { font-size: 10px; }
+
+  .month-grid { --rowh: 15px; --headh: 27px; }
+  .mcell { --cellpx: 3px; padding: 3px var(--cellpx); gap: 1px; }
+  .mcell .dhead { min-height: 14px; }
+  .mcell .dn { font-size: 12px; }
+  .mcell .dt { font-size: 8px; line-height: 10px; height: 10px; flex-basis: 10px; margin-top: 0; }
+  .pill, .evspacer { height: 13px; line-height: 11px; flex-basis: 13px; }
+  .pill { font-size: 9px; padding: 1px 3px; }
+  .more { font-size: 8px; }
+  .wbtn { font-size: 7px; padding: 1px 2px; }
+  .wbtn sup { font-size: 6px; }
+  .tab { padding: 8px 0 7px; font-size: 11px; }
 }
 
 /* ============================================================
