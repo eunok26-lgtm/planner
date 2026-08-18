@@ -26,6 +26,10 @@
   --c-lavender-bg:#e2dcee; --c-lavender-fg:#4e4270;
   --c-apricot-bg:#f5e2d3;  --c-apricot-fg:#7a4a26;
   --c-rose-bg:#f3dbdf;     --c-rose-fg:#8a3b47;
+
+  /* 위클리 분류 구분색 (분류가 늘면 순서대로 돌아가며 씁니다) */
+  --cat-0:#5b7c99; --cat-1:#a87a55; --cat-2:#7b9a6d;
+  --cat-3:#9a6f9e; --cat-4:#c4606c; --cat-5:#4f8f96;
   --shadow: 0 1px 2px rgba(40,48,60,.06), 0 8px 24px rgba(40,48,60,.06);
   --r: 12px;
   --safe-b: env(safe-area-inset-bottom, 0px);
@@ -247,6 +251,19 @@ button { cursor: pointer; border: none; background: none; }
   overflow: hidden; padding: 0 1px;
 }
 .wline .wt { font-size: 10px; font-weight: 800; color: var(--accent); flex: 0 0 auto; }
+
+/* 분류 구분 점 */
+.wdot { width: 7px; height: 7px; border-radius: 50%; flex: 0 0 7px; }
+.wdot.c0 { background: var(--cat-0); } .wdot.c1 { background: var(--cat-1); }
+.wdot.c2 { background: var(--cat-2); } .wdot.c3 { background: var(--cat-3); }
+.wdot.c4 { background: var(--cat-4); } .wdot.c5 { background: var(--cat-5); }
+/* 아직 분류되지 않은 일정 — 속이 빈 회색 점으로 구분합니다 */
+.wdot.cnone { background: none; border: 1.5px solid var(--mute); }
+
+/* 분류 범례 */
+.catlegend { display: flex; flex-wrap: wrap; gap: 10px; padding: 8px 12px 4px; }
+.catchip { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--ink-2); }
+.catchip .wdot { width: 8px; height: 8px; flex: 0 0 8px; }
 
 /* 끌기 손잡이 — 여기만 잡아야 끌리고, 나머지는 눌러서 편집 / 화면 스크롤 */
 .wline .grip {
@@ -552,6 +569,7 @@ body.is-dragging { user-select: none; -webkit-user-select: none; cursor: grabbin
 @media print {
   /* 화면 UI 는 전부 감추고 출력물만 남깁니다 */
   body > *:not(#printout) { display: none !important; }
+  .catlegend { display: none !important; }
   html, body {
     height: auto !important; width: auto !important;
     background: #fff !important; color: #48525e !important;
@@ -635,5 +653,10 @@ body.is-dragging { user-select: none; -webkit-user-select: none; cursor: grabbin
     font-size: 6.5pt; color: #48525e; overflow: hidden; min-width: 0;
   }
   .ps-t { font-size: 5.5pt; font-weight: 800; color: #5b7c99; flex: 0 0 auto; }
+  .ps-dot { width: 1.4mm; height: 1.4mm; border-radius: 50%; flex: 0 0 1.4mm; }
+  .ps-dot.c0 { background:#5b7c99; } .ps-dot.c1 { background:#a87a55; }
+  .ps-dot.c2 { background:#7b9a6d; } .ps-dot.c3 { background:#9a6f9e; }
+  .ps-dot.c4 { background:#c4606c; } .ps-dot.c5 { background:#4f8f96; }
+  .ps-dot.cnone { background: none; border: 0.25mm solid #9aa2ab; }
   .ps-x { white-space: nowrap; overflow: hidden; text-overflow: clip; min-width: 0; }
 }

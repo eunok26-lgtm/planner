@@ -21,32 +21,92 @@ const TASK_BASE = 'https://tasks.googleapis.com/tasks/v1';
 /** 캘린더별 일정 주소 */
 const calBase = calId => `${CAL_API}/calendars/${encodeURIComponent(calId)}/events`;
 
-let CAL_M = CFG.CALENDAR_ID;                                  // 월간 = 기본 캘린더
-let CAL_W = localStorage.getItem('planner.cal.w') || null;    // 위클리 = 별도 캘린더
+let CAL_M = CFG.CALENDAR_ID;        // 월간 = 기본 캘린더
 
-/** 출처에 맞는 캘린더 id */
-const calOf = src => (src === 'w' && CAL_W) ? CAL_W : CAL_M;
+/* 위클리 분류 — 분류 하나가 구글 캘린더 하나입니다.
+   캘린더 설명란에 아래 표시를 넣어두고, 그 표시로 분류 캘린더를 찾아냅니다.
+   (기기마다 따로 관리할 필요 없이 구글 쪽에 정보가 남습니다) */
+const WCAL_TAG = '#planner-weekly';
+const WCAL_DESC = `플래너 위클리 분류 ${WCAL_TAG}`;
 
-/** 위클리 캘린더를 찾고, 없으면 만듭니다. */
+let WCATS = JSON.parse(localStorage.getItem('planner.wcats') || '[]');  // [{id,name}]
+let wcatsFresh = false;
+
+const isWeeklyCal = id => WCATS.some(c => c.id === id);
+const catNameOf   = id => (WCATS.find(c => c.id === id) || {}).name || '';
+/* 분류를 찾지 못하면 -1. 예전에 기본 캘린더에 넣어 아직 분류되지 않은 일정이 여기 해당합니다.
+   이때 0 을 돌려주면 엉뚱하게 첫 번째 분류 색으로 보이므로 반드시 구분해야 합니다. */
+const catIndexOf  = id => WCATS.findIndex(c => c.id === id);
+/** 분류 색 클래스 (분류가 6개를 넘으면 색을 돌려 씁니다) */
+const catCls = i => (i < 0 ? 'cnone' : 'c' + (i % 6));
+/* 기본 분류 = config 에 적어둔 이름의 캘린더.
+   이름순 첫 번째로 잡으면 새 분류를 만들 때 기본이 바뀌어 버려서, 이름으로 찾습니다. */
+const defaultWCal = () => {
+  const named = WCATS.find(c => c.name === CFG.WEEKLY_CALENDAR);
+  return (named || WCATS[0] || { id: CAL_M }).id;
+};
+
+/** 출처에 맞는 기본 캘린더 id */
+const calOf = src => (src === 'w') ? defaultWCal() : CAL_M;
+
+function saveCats() {
+  WCATS.sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+  localStorage.setItem('planner.wcats', JSON.stringify(WCATS));
+}
+
+async function createCategoryCal(name) {
+  return api(`${CAL_API}/calendars`, {
+    method: 'POST',
+    body: JSON.stringify({
+      summary: name, description: WCAL_DESC,
+      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
+    })
+  });
+}
+
+/** 새 분류(=새 캘린더)를 만듭니다. */
+async function addCategory(name) {
+  await ensureCalendars();
+  const already = WCATS.find(c => c.name === name);
+  if (already) return already;
+  const made = await createCategoryCal(name);
+  const cat = { id: made.id, name };
+  WCATS.push(cat); saveCats();
+  return cat;
+}
+
+/** 분류 캘린더 목록을 확보합니다. 없으면 기본 분류를 하나 만듭니다. */
 async function ensureCalendars() {
-  if (CAL_W) return CAL_W;
+  if (wcatsFresh) return WCATS;
+
   const j = await api(`${CAL_API}/users/me/calendarList?maxResults=250`);
-  const hit = (j.items || []).find(c => c.summary === CFG.WEEKLY_CALENDAR);
-  if (hit) {
-    CAL_W = hit.id;
-  } else {
-    const made = await api(`${CAL_API}/calendars`, {
-      method: 'POST',
-      body: JSON.stringify({
-        summary: CFG.WEEKLY_CALENDAR,
-        description: '플래너 위클리 화면에 적은 일정',
-        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
-      })
-    });
-    CAL_W = made.id;
+  const items = j.items || [];
+  let found = items.filter(c => (c.description || '').includes(WCAL_TAG));
+
+  // 예전에 만들어 둔 '위클리' 캘린더를 한 번만 정리합니다
+  // (요청하신 대로 이름을 바꾸고, 분류 표시를 달아 줍니다)
+  if (!localStorage.getItem('planner.wmigrated')) {
+    const legacy = items.find(c => !(c.description || '').includes(WCAL_TAG) &&
+                                   (c.summary === '위클리' || c.summary === CFG.WEEKLY_CALENDAR));
+    if (legacy) {
+      await api(`${CAL_API}/calendars/${encodeURIComponent(legacy.id)}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ summary: CFG.WEEKLY_CALENDAR, description: WCAL_DESC })
+      });
+      found.push({ id: legacy.id, summary: CFG.WEEKLY_CALENDAR });
+    }
+    localStorage.setItem('planner.wmigrated', '1');
   }
-  localStorage.setItem('planner.cal.w', CAL_W);
-  return CAL_W;
+
+  if (!found.length) {
+    const made = await createCategoryCal(CFG.WEEKLY_CALENDAR);
+    found = [{ id: made.id, summary: CFG.WEEKLY_CALENDAR }];
+  }
+
+  WCATS = found.map(c => ({ id: c.id, name: c.summary }));
+  saveCats();
+  wcatsFresh = true;
+  return WCATS;
 }
 
 const $  = s => document.querySelector(s);
@@ -164,13 +224,14 @@ function normalizeEvent(g, calId) {
   // 구글 캘린더 앱에서 직접 넣은 일정은 표시가 없으므로 월간에 보입니다.
   // 어느 캘린더에서 왔는지로 판단합니다.
   // 예전에 기본 캘린더에 저장된 위클리 일정도 계속 위클리로 보이도록 표시를 함께 봅니다.
-  const src = (calId && calId === CAL_W) ? 'w'
+  const src = (calId && isWeeklyCal(calId)) ? 'w'
             : (g.extendedProperties?.private?.plannerSrc === 'w' ? 'w' : 'm');
   // 반복 일정이면 원본(마스터) id 가 함께 옵니다
   const meta = { order: Number.isFinite(order) ? order : null, created, src,
                  seriesId: g.recurringEventId || null,
                  color: GCAL_TO_COLOR[g.colorId] || '',
-                 cal: calId || CAL_M };
+                 cal: calId || CAL_M,
+                 cat: calId ? catNameOf(calId) : '' };
   if (allDay) {
     const from = parseYmd(g.start.date);
     const to   = parseYmd(g.end.date);              // end 는 제외 경계
@@ -225,14 +286,11 @@ async function loadMonth(anchor, force = false) {
     singleEvents: 'true', orderBy: 'startTime', maxResults: '2500'
   });
   await ensureCalendars();
-  const [jm, jw] = await Promise.all([
-    api(`${calBase(CAL_M)}?${qs}`),
-    api(`${calBase(CAL_W)}?${qs}`)
-  ]);
-  indexEvents([
-    ...(jm.items || []).map(x => [x, CAL_M]),
-    ...(jw.items || []).map(x => [x, CAL_W])
-  ], ymd(from), ymd(addDays(to, -1)));
+  const cals = [CAL_M, ...WCATS.map(c => c.id)];
+  const res = await Promise.all(cals.map(c => api(`${calBase(c)}?${qs}`)));
+  const rows = [];
+  res.forEach((j, i) => (j.items || []).forEach(x => rows.push([x, cals[i]])));
+  indexEvents(rows, ymd(from), ymd(addDays(to, -1)));
   store.loadedMonths.add(mk);
   saveCache();
 }
@@ -346,7 +404,7 @@ async function createEvent(f) {
   const rec = buildRecurrence(f);
   if (rec) body.recurrence = rec;
   await ensureCalendars();
-  await api(calBase(calOf(f.src)), { method: 'POST', body: JSON.stringify(body) });
+  await api(calBase(f.cal || calOf(f.src)), { method: 'POST', body: JSON.stringify(body) });
   await refreshAround(parseYmd(f.date));
 }
 async function updateEvent(id, f, cal) {
@@ -359,6 +417,12 @@ async function updateEvent(id, f, cal) {
   await api(`${calBase(cal || calOf(f.src))}/${encodeURIComponent(id)}`,
             { method: 'PATCH', body: JSON.stringify(body) });
   await refreshAround(parseYmd(f.date));
+}
+
+/** 일정을 다른 분류(=다른 캘린더)로 옮깁니다. */
+async function moveEventToCal(id, fromCal, toCal) {
+  await api(`${calBase(fromCal)}/${encodeURIComponent(id)}/move?destination=${encodeURIComponent(toCal)}`,
+            { method: 'POST' });
 }
 
 /** 반복 일정 전체(원본)를 지웁니다. */
@@ -471,7 +535,7 @@ async function truncateSeries(seriesId, fromDateStr, cal) {
 async function listRecurringSeries() {
   await ensureCalendars();
   const out = [];
-  for (const cal of [CAL_M, CAL_W]) {
+  for (const cal of [CAL_M, ...WCATS.map(c => c.id)]) {
     let pageToken = null;
     do {
       const qs = new URLSearchParams({ singleEvents: 'false', maxResults: '250', showDeleted: 'false' });
@@ -481,7 +545,7 @@ async function listRecurringSeries() {
         if (!it.recurrence || !it.recurrence.length) continue;
         out.push({
           id: it.id, cal,
-          where: cal === CAL_W ? '위클리' : '월간',
+          where: isWeeklyCal(cal) ? catNameOf(cal) : '월간',
           text: it.summary || '(제목 없음)',
           start: it.start?.date || (it.start?.dateTime ? ymd(new Date(it.start.dateTime)) : ''),
           rule: recurrenceText(it.recurrence)
@@ -501,7 +565,9 @@ async function deleteEvent(id, dateStr, cal) {
 /** 끌어서 놓은 위치를 구글에 저장합니다.
     앞뒤 항목의 정렬값 사이 중간값을 새 순서로 써서, 한 번에 한 건만 고치면 됩니다. */
 async function reorderEvent(id, fromDate, toDate, index, scope = 'm') {
-  const cal = calOf(scope === 'w' ? 'w' : 'm');
+  // 분류마다 캘린더가 다르므로 그 일정이 실제로 들어있는 캘린더를 씁니다
+  const moving0 = eventsOn(fromDate).find(e => e.id === id);
+  const cal = (moving0 && moving0.cal) || calOf(scope === 'w' ? 'w' : 'm');
   // 놓은 위치(index)는 그 화면에 보이는 것들 기준이므로, 이웃도 같은 범위에서 찾습니다
   const rest = eventsFor(toDate, scope).filter(e => e.id !== id);
   const prev = index > 0            ? orderKey(rest[index - 1]) : null;
@@ -542,11 +608,10 @@ async function reorderEvent(id, fromDate, toDate, index, scope = 'm') {
 
 /** 한 날짜의 정렬값을 넉넉한 간격으로 다시 매깁니다. */
 async function renumberDay(dateStr, scope = 'm') {
-  const cal = calOf(scope === 'w' ? 'w' : 'm');
   const list = eventsFor(dateStr, scope);
   const base = Date.now();
   for (let i = 0; i < list.length; i++) {
-    await api(`${calBase(cal)}/${encodeURIComponent(list[i].id)}`, {
+    await api(`${calBase(list[i].cal || CAL_M)}/${encodeURIComponent(list[i].id)}`, {
       method: 'PATCH',
       body: JSON.stringify({ extendedProperties: { private: {
         plannerOrder: String(base + i * 60000),
@@ -897,6 +962,8 @@ function renderWeek() {
       lines += e
         ? `<button class="wline${colorCls(e)}" data-id="${e.id}" data-date="${ds}">
              <span class="grip" aria-hidden="true"></span>
+             ${WCATS.length > 1 ? `<span class="wdot ${catCls(catIndexOf(e.cal))}"
+                    title="${esc(e.cat || '분류 없음 — ⋯ 메뉴에서 모으기')}"></span>` : ''}
              ${e.time ? `<span class="wt">${e.time}</span>` : ''}
              <span class="wx">${esc(e.text)}</span></button>`
         : `<button class="wline empty${k >= keep ? ' xline' : ''}" data-date="${ds}"></button>`;
@@ -913,6 +980,22 @@ function renderWeek() {
       </div>`;
   }
   $('#week-grid').innerHTML = html;
+
+  // 분류가 둘 이상이면 무슨 색이 무슨 분류인지 알려줍니다
+  if (WCATS.length > 1) {
+    // 이번 주에 아직 분류되지 않은 일정이 있으면 범례에도 알려줍니다
+    let hasNone = false;
+    for (let i = 0; i < 7; i++) {
+      if (eventsFor(ymd(addDays(mon, i)), 'w').some(e => catIndexOf(e.cal) < 0)) { hasNone = true; break; }
+    }
+    $('#cat-legend').innerHTML =
+      WCATS.map((c, i) => `<span class="catchip"><i class="wdot ${catCls(i)}"></i>${esc(c.name)}</span>`).join('')
+      + (hasNone ? '<span class="catchip"><i class="wdot cnone"></i>미분류</span>' : '');
+    $('#cat-legend').hidden = false;
+  } else {
+    $('#cat-legend').innerHTML = '';
+    $('#cat-legend').hidden = true;
+  }
 
   // 세로 스택에서는 오늘 칸이 바로 보이도록 한 번 스크롤합니다
   if (weekScrollToday && phone && weekMode === 'stack') {
@@ -1010,6 +1093,23 @@ function openSheet(dateStr, id, src) {
   $('#ev-date').value    = ev ? ev.sd : dateStr;
   $('#ev-enddate').value = ev ? ev.ed : dateStr;
   $('#ev-note').value  = ev ? ev.note : '';
+  // 분류 — 위클리 일정에만 씁니다
+  const isW = (sheetSrc === 'w');
+  $('#ev-cat-wrap').hidden = !isW;
+  if (isW) {
+    // 아직 분류되지 않은 일정(기본 캘린더에 남아 있는 옛날 것)은
+    // 있는 그대로 '(분류 없음)' 으로 보여줍니다.
+    // 예전에는 기본 분류를 대신 골라 보여줘서, 점 색깔과 어긋나 보였습니다.
+    const known = !!(ev && WCATS.some(c => c.id === ev.cal));
+    const opts = WCATS.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');
+    $('#ev-cat').innerHTML =
+      (ev && !known ? '<option value="__none__">(분류 없음)</option>' : '')
+      + opts + '<option value="__new__">+ 새 분류 만들기…</option>';
+    $('#ev-cat').value = known ? ev.cal : (ev ? '__none__' : defaultWCal());
+    // 반복 일정 중 하나는 분류를 옮길 수 없습니다 (구글이 회차 단위 이동을 막습니다)
+    $('#ev-cat').disabled = !!(ev && ev.seriesId);
+  }
+
   setColorPick(ev ? ev.color : '');
   $('#ev-allday').checked = ev ? ev.allDay : true;
   $('#ev-time').value  = ev && ev.time ? ev.time : '09:00';
@@ -1105,6 +1205,8 @@ async function saveSheet() {
     src: sheetSrc,
     spanDays: 1,
     color: $('#ev-color .sw.on')?.dataset.c || '',
+    cal: (sheetSrc === 'w' && !$('#ev-cat').disabled
+          && $('#ev-cat').value !== '__none__') ? $('#ev-cat').value : null,
     rep:        $('#ev-rep').value,
     repDays:    $$('#rep-days .dowbtn.on').map(b => b.dataset.d),
     repEnd:     $('#ev-repend').value,
@@ -1139,8 +1241,14 @@ async function saveSheet() {
   closeSheet();
 
   await guard(async () => {
-    if (!target)              await createEvent(f);
-    else if (!inSeries)       await updateEvent(target.id, f, ev.cal);
+    if (!target) {
+      await createEvent(f);
+    } else if (!inSeries) {
+      // 분류를 바꿨으면 먼저 그 캘린더로 옮기고 나서 내용을 고칩니다
+      if (f.cal && ev.cal && f.cal !== ev.cal) await moveEventToCal(target.id, ev.cal, f.cal);
+      await updateEvent(target.id, f, f.cal || ev.cal);
+      store.loadedMonths.clear();
+    }
     else if (scope === 'one') await updateEvent(target.id, f, ev.cal);
     else if (scope === 'after') await updateSeriesAfter(ev.seriesId, wasDate, f, ev);
     else                        await updateSeriesAll(ev.seriesId, f, ev.cal);
@@ -1173,9 +1281,10 @@ function openWeeklyPopup(dateStr) {
 }
 function closeWeeklyPopup() { $('#wpop').hidden = true; }
 
-/** 예전에 기본 캘린더에 저장된 위클리 일정을 위클리 캘린더로 옮깁니다. */
+/** 예전에 기본 캘린더에 남아 있는 위클리 일정을 기본 분류로 모읍니다. */
 async function migrateWeeklyEvents() {
   await ensureCalendars();
+  const dest = defaultWCal();
   const ids = [];
   let pageToken = null;
   do {
@@ -1191,7 +1300,7 @@ async function migrateWeeklyEvents() {
   let done = 0;
   for (const id of ids) {
     // 구글의 move 기능을 쓰면 반복·색상까지 그대로 옮겨집니다
-    await api(`${calBase(CAL_M)}/${encodeURIComponent(id)}/move?destination=${encodeURIComponent(CAL_W)}`,
+    await api(`${calBase(CAL_M)}/${encodeURIComponent(id)}/move?destination=${encodeURIComponent(dest)}`,
               { method: 'POST' });
     done++;
     setSync(`옮기는 중… ${done}/${ids.length}`, 'busy');
@@ -1276,7 +1385,9 @@ function printSheetHTML(monday) {
     for (let k = 0; k < Math.max(7, evs.length); k++) {
       const e = evs[k];
       lines += `<div class="ps-l">${e
-        ? (e.time ? `<span class="ps-t">${e.time}</span>` : '') + `<span class="ps-x">${esc(e.text)}</span>`
+        ? (WCATS.length > 1 ? `<span class="ps-dot ${catCls(catIndexOf(e.cal))}"></span>` : '')
+          + (e.time ? `<span class="ps-t">${e.time}</span>` : '')
+          + `<span class="ps-x">${esc(e.text)}</span>`
         : ''}</div>`;
     }
     return `<div class="ps-col ${kind} ${term && !hol ? 'term' : ''}">
@@ -1578,6 +1689,23 @@ function wire() {
     if (b) setColorPick(b.dataset.c);
   };
 
+  /* 분류 고르기 — '+ 새 분류' 를 고르면 이름을 물어보고 캘린더를 하나 만듭니다 */
+  $('#ev-cat').onchange = async () => {
+    if ($('#ev-cat').value !== '__new__') return;
+    const name = (prompt(`새 분류 이름을 입력하세요
+(구글 캘린더가 이 이름으로 하나 만들어집니다)`) || '').trim();
+    if (!name) { $('#ev-cat').value = defaultWCal(); return; }
+    await guard(async () => {
+      const cat = await addCategory(name);
+      $('#ev-cat').innerHTML =
+        WCATS.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')
+        + '<option value="__new__">+ 새 분류 만들기…</option>';
+      $('#ev-cat').value = cat.id;
+      store.loadedMonths.clear();
+      toast(`분류 "${name}" 을 만들었습니다`);
+    }, '분류 만드는 중…');
+  };
+
   /* 반복 입력칸 */
   $('#ev-rep').onchange = syncRepFields;
   $('#ev-repend').onchange = syncRepFields;
@@ -1587,18 +1715,23 @@ function wire() {
   };
 
   /* 더보기 메뉴 */
-  $('#more-btn').onclick = () => { $('#menu').hidden = false; };
+  $('#more-btn').onclick = () => {
+    const dest = catNameOf(defaultWCal()) || CFG.WEEKLY_CALENDAR;
+    $('#mi-migrate').textContent = `예전 위클리 일정을 "${dest}" 로 모으기`;
+    $('#menu').hidden = false;
+  };
   $('#mi-close').onclick = () => { $('#menu').hidden = true; };
   $('#menu').onclick = e => { if (e.target.id === 'menu') $('#menu').hidden = true; };
   $('#mi-repeat').onclick = () => { $('#menu').hidden = true; openManager(); };
   $('#mi-migrate').onclick = () => {
     $('#menu').hidden = true;
-    if (!confirm(`예전에 기본 캘린더에 저장된 위클리 일정을 "위클리" 캘린더로 옮깁니다.
-계속할까요?`)) return;
+    const dest = catNameOf(defaultWCal()) || CFG.WEEKLY_CALENDAR;
+    if (!confirm(`위클리에 적었던 일정 중 아직 기본 캘린더에 남아 있는 것들을
+"${dest}" 분류로 모두 옮깁니다. 계속할까요?`)) return;
     guard(async () => {
       const n = await migrateWeeklyEvents();
       renderAll();
-      toast(n ? `${n}건을 위클리 캘린더로 옮겼습니다` : '옮길 일정이 없습니다');
+      toast(n ? `${n}건을 "${dest}" 로 옮겼습니다` : '옮길 일정이 없습니다 (이미 모두 분류되어 있습니다)');
     }, '옮기는 중…');
   };
 
@@ -1858,7 +1991,7 @@ async function boot() {
     localStorage.removeItem('planner.consented');
     localStorage.removeItem('planner.cal.w');
     localStorage.setItem('planner.scopev', SCOPE_VERSION);
-    CAL_W = null;
+    WCATS = []; wcatsFresh = false;
   }
 
   loadCache();
