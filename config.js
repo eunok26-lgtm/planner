@@ -10,10 +10,14 @@
 window.APP_CONFIG = {
 
   /* ① 필수 — 발급받은 OAuth 클라이언트 ID */
-  GOOGLE_CLIENT_ID: '여기에_클라이언트_ID를_붙여넣으세요.apps.googleusercontent.com',
+  GOOGLE_CLIENT_ID: '68023465892-067ihhj84pjnb4r6q8s99oub0tbe0otm.apps.googleusercontent.com',
 
-  /* ② 일정을 저장할 캘린더. 'primary' = 내 기본 캘린더 */
+  /* ② 월간 일정을 저장할 캘린더. 'primary' = 내 기본 캘린더 */
   CALENDAR_ID: 'primary',
+
+  /* ②-1 위클리 일정을 따로 담을 캘린더 이름 (없으면 자동으로 만듭니다).
+         구글 캘린더·아이폰 캘린더에서 이 캘린더의 체크를 끄면 안 보입니다. */
+  WEEKLY_CALENDAR: '위클리',
 
   /* ③ 구글 Tasks 에 만들어질 목록 이름 (없으면 자동 생성) */
   TASKLIST_TODO:     '할 일',

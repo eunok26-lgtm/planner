@@ -16,7 +16,16 @@
   --sat:    #8aa9cd;
   --term:   #8faa97;
   --accent: #5b7c99;
+  --src-m:  #5b7c99;   /* 월간에서 추가 */
+  --src-w:  #a87a55;   /* 위클리에서 추가 */
   --today:  #fdf3e7;
+
+  /* 일정 색상 5종 — 배경은 파스텔, 글자는 같은 계열 진한 색으로 대비를 확보 */
+  --c-blue-bg:#dbe6f0;  --c-blue-fg:#2f5573;
+  --c-sage-bg:#dbe8dd;  --c-sage-fg:#3a5d45;
+  --c-lavender-bg:#e2dcee; --c-lavender-fg:#4e4270;
+  --c-apricot-bg:#f5e2d3;  --c-apricot-fg:#7a4a26;
+  --c-rose-bg:#f3dbdf;     --c-rose-fg:#8a3b47;
   --shadow: 0 1px 2px rgba(40,48,60,.06), 0 8px 24px rgba(40,48,60,.06);
   --r: 12px;
   --safe-b: env(safe-area-inset-bottom, 0px);
@@ -27,11 +36,23 @@
     --paper:#171a1f; --card:#20242b; --ink:#e6e9ed; --ink-2:#a8b0ba; --mute:#7b838d;
     --line:#2c313a; --rule:#2c313a; --today:#2a2419;
     --hol:#e08b95; --sun:#dda0a6; --sat:#9dbadb; --term:#9fbfa8; --accent:#8bb0cf;
+    --src-m:#8bb0cf; --src-w:#cda87e;
+    --c-blue-bg:#2b3a4a;     --c-blue-fg:#a8c8e4;
+    --c-sage-bg:#2c3b32;     --c-sage-fg:#a9cdb4;
+    --c-lavender-bg:#35304a; --c-lavender-fg:#c3b6e0;
+    --c-apricot-bg:#43342a;  --c-apricot-fg:#e2b892;
+    --c-rose-bg:#432d33;     --c-rose-fg:#e0a8b2;
     --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.3);
   }
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+/* hidden 속성이 항상 이기게 합니다.
+   .gate 처럼 display 를 직접 지정한 규칙은 브라우저 기본값인
+   [hidden]{display:none} 보다 우선이라, 이 줄이 없으면 hidden=true 를 줘도
+   요소가 사라지지 않습니다. */
+[hidden] { display: none !important; }
 
 html, body {
   height: 100%;
@@ -117,15 +138,32 @@ button { cursor: pointer; border: none; background: none; }
 
 .month-grid { display: grid; grid-template-columns: repeat(7, 1fr); }
 .mcell {
-  min-height: 92px; padding: 5px 4px; border-bottom: 1px solid var(--line);
-  border-right: 1px solid var(--line); overflow: hidden; text-align: left;
+  --cellpx: 4px;                       /* 칸 좌우 여백 — 막대를 이어붙일 때 이 값을 씁니다 */
+  min-height: 92px; padding: 5px var(--cellpx); border-bottom: 1px solid var(--line);
+  border-right: 1px solid var(--line); text-align: left;
   display: flex; flex-direction: column; gap: 2px;
 }
 .mcell:nth-child(7n) { border-right: none; }
-.mcell.other { opacity: .32; }
+/* 지난달·다음달 칸은 흐리게. opacity 를 칸 전체에 주면 이어진 막대가 끊겨 보여서
+   글자와 알약에만 따로 적용합니다. */
+.mcell.other .dn, .mcell.other .dt { opacity: .35; }
+.mcell.other .pill { opacity: .45; }
 .mcell.is-today { background: var(--today); }
+.mcell .dhead { display: flex; align-items: center; gap: 3px; min-height: 16px; }
 .mcell .dn { font-size: 14px; font-weight: 800; line-height: 1.1; }
-.mcell .dt { font-size: 9px; color: var(--term); line-height: 1.1; margin-top: 1px;
+
+/* W 버튼 — 그 날 위클리에 적은 일정을 팝업으로 열어 봅니다 */
+.wbtn {
+  font-size: 8px; font-weight: 800; line-height: 1; letter-spacing: 0;
+  padding: 2px 3px; border-radius: 3px;
+  border: 1px solid var(--accent); color: var(--accent); background: none;
+  flex: 0 0 auto;
+}
+.wbtn sup { font-size: 7px; margin-left: 1px; vertical-align: super; }
+.wbtn:active { background: var(--accent); color: var(--paper); }
+/* 절기·기념일 줄. 내용이 없어도 높이를 차지해야 옆 칸 막대와 높이가 맞습니다. */
+.mcell .dt { font-size: 9px; color: var(--term); line-height: 11px; height: 11px;
+             flex: 0 0 11px; margin-top: 1px;
              overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mcell.hol .dn, .mcell.hol .dt { color: var(--hol); }
 .mcell.sun .dn { color: var(--sun); }
@@ -137,7 +175,37 @@ button { cursor: pointer; border: none; background: none; }
   color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .pill.timed::before { content: attr(data-t) " "; color: var(--accent); font-weight: 700; }
+.pill:not(.bar) { touch-action: none; cursor: grab; }   /* 끌어서 순서 바꾸기 */
+
+/* 줄 높이를 고정해야 옆 칸의 막대와 정확히 같은 높이에 옵니다 */
+.pill, .evspacer { height: 15px; line-height: 13px; flex: 0 0 15px; }
+.evspacer { visibility: hidden; }
+
+/* ---- 여러 날에 걸친 일정 : 칸을 넘어 한 줄로 이어 그립니다 ---- */
+.pill.bar {
+  position: relative; z-index: 2; cursor: pointer;
+  background: color-mix(in srgb, var(--accent) 26%, transparent);
+  font-weight: 600;
+}
+.pill.bar.cl { border-top-left-radius: 0;  border-bottom-left-radius: 0; }
+.pill.bar.cr { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+/* 칸 여백과 칸 사이 구분선(1px)만큼 밖으로 늘려서 옆 칸 막대와 딱 맞붙입니다 */
+.pill.bar.bl { margin-left:  calc(var(--cellpx) * -1);
+               padding-left: calc(var(--cellpx) + 4px); }
+.pill.bar.br { margin-right: calc((var(--cellpx) + 1px) * -1); }
 .more { font-size: 9px; color: var(--mute); padding-left: 2px; }
+
+/* ---- 일정 색상 적용 ---- */
+.pill.c-blue     { background: var(--c-blue-bg);     color: var(--c-blue-fg); }
+.pill.c-sage     { background: var(--c-sage-bg);     color: var(--c-sage-fg); }
+.pill.c-lavender { background: var(--c-lavender-bg); color: var(--c-lavender-fg); }
+.pill.c-apricot  { background: var(--c-apricot-bg);  color: var(--c-apricot-fg); }
+.pill.c-rose     { background: var(--c-rose-bg);     color: var(--c-rose-fg); }
+.pill.c-blue.timed::before     { color: var(--c-blue-fg); }
+.pill.c-sage.timed::before     { color: var(--c-sage-fg); }
+.pill.c-lavender.timed::before { color: var(--c-lavender-fg); }
+.pill.c-apricot.timed::before  { color: var(--c-apricot-fg); }
+.pill.c-rose.timed::before     { color: var(--c-rose-fg); }
 
 /* ---------------- 위클리 (인쇄본과 동일 구성) ---------------- */
 .week-wrap { overflow-x: auto; }
@@ -162,11 +230,27 @@ button { cursor: pointer; border: none; background: none; }
   overflow: hidden; padding: 0 1px;
 }
 .wline .wt { font-size: 10px; font-weight: 800; color: var(--accent); flex: 0 0 auto; }
+
+/* 끌기 손잡이 — 여기만 잡아야 끌리고, 나머지는 눌러서 편집 / 화면 스크롤 */
+.wline .grip {
+  flex: 0 0 10px; height: 16px; touch-action: none; cursor: grab;
+  background-image: radial-gradient(circle, var(--mute) 1px, transparent 1px);
+  background-size: 4px 4px; background-position: center;
+  opacity: .45; margin-left: -2px;
+}
+.wline .grip:active { cursor: grabbing; }
 .wline .wx { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wline.empty { color: var(--mute); }
 .wline.empty::after { content: "＋"; font-size: 13px; color: transparent; }
 .wline.empty:hover::after { color: var(--mute); }
 .wline:active { background: var(--line); }
+
+/* 위클리 줄 — 종이 양식이라 배경 대신 글자색으로만 구분합니다 */
+.wline.c-blue     .wx, .wline.c-blue     .wt { color: var(--c-blue-fg); }
+.wline.c-sage     .wx, .wline.c-sage     .wt { color: var(--c-sage-fg); }
+.wline.c-lavender .wx, .wline.c-lavender .wt { color: var(--c-lavender-fg); }
+.wline.c-apricot  .wx, .wline.c-apricot  .wt { color: var(--c-apricot-fg); }
+.wline.c-rose     .wx, .wline.c-rose     .wt { color: var(--c-rose-fg); }
 
 /* ---------------- 오늘 ---------------- */
 .today-head { padding: 6px 0 2px; }
@@ -180,8 +264,25 @@ button { cursor: pointer; border: none; background: none; }
   background: var(--card); border-radius: var(--r); padding: 11px 13px; box-shadow: var(--shadow);
 }
 .ev .t { font-size: 12px; font-weight: 800; color: var(--accent); flex: 0 0 46px; }
+
+/* 출처 배지 — M 월간 / W 위클리 */
+.ev .src {
+  flex: 0 0 18px; height: 18px; border-radius: 5px;
+  display: grid; place-items: center;
+  font-size: 10px; font-weight: 800; line-height: 1;
+  color: #fff;
+}
+.ev .src.m { background: var(--src-m); }
+.ev .src.w { background: var(--src-w); }
 .ev .x { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .empty-note { color: var(--mute); font-size: 13px; padding: 10px 2px; }
+
+/* 오늘 목록 — 왼쪽에 색 띠 */
+.ev.c-blue     { border-left: 3px solid var(--c-blue-fg);     padding-left: 10px; }
+.ev.c-sage     { border-left: 3px solid var(--c-sage-fg);     padding-left: 10px; }
+.ev.c-lavender { border-left: 3px solid var(--c-lavender-fg); padding-left: 10px; }
+.ev.c-apricot  { border-left: 3px solid var(--c-apricot-fg);  padding-left: 10px; }
+.ev.c-rose     { border-left: 3px solid var(--c-rose-fg);     padding-left: 10px; }
 
 .task-list { display: flex; flex-direction: column; gap: 4px; }
 .task {
@@ -210,7 +311,16 @@ button { cursor: pointer; border: none; background: none; }
 .mini { font-size: 12px; font-weight: 700; color: var(--accent); padding: 4px 8px; border-radius: 8px; }
 .mini.solid { background: var(--ink); color: var(--paper); padding: 7px 14px; }
 .mini.ghost { color: var(--mute); }
+.btn-danger + .btn-danger { margin-top: 8px; }
 .btn-danger { width: 100%; margin-top: 14px; padding: 11px; border-radius: 10px; color: var(--hol); font-weight: 700; background: color-mix(in srgb, var(--hol) 10%, transparent); }
+
+/* ---------------- 끌어서 순서 바꾸는 중 ---------------- */
+.dragging {
+  opacity: .55;
+  outline: 1.5px dashed var(--accent); outline-offset: 1px;
+  border-radius: 4px;
+}
+body.is-dragging { user-select: none; -webkit-user-select: none; cursor: grabbing; }
 
 /* ---------------- 편집 시트 ---------------- */
 .sheet-back { position: fixed; inset: 0; background: rgba(20,24,30,.4); z-index: 60; display: flex; align-items: flex-end; justify-content: center; }
@@ -235,6 +345,61 @@ button { cursor: pointer; border: none; background: none; }
 .fld-row { display: flex; gap: 10px; }
 .fld-row .fld { flex: 1; }
 .chk { display: flex; align-items: center; gap: 8px; font-size: 14px; margin-bottom: 12px; color: var(--ink-2); }
+.fld .fld-note, .fld-note {
+  font-size: 12px; color: var(--src-w); margin: -4px 0 12px; line-height: 1.4;
+}
+
+/* 색 고르기 — 미리보기 글자로 대비를 바로 볼 수 있게 합니다 */
+.colorpick { display: flex; gap: 6px; }
+.colorpick .sw {
+  flex: 1; height: 34px; border-radius: 8px;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--ink);
+  font-size: 13px; font-weight: 800;
+}
+.colorpick .sw.c-blue     { background: var(--c-blue-bg);     color: var(--c-blue-fg); }
+.colorpick .sw.c-sage     { background: var(--c-sage-bg);     color: var(--c-sage-fg); }
+.colorpick .sw.c-lavender { background: var(--c-lavender-bg); color: var(--c-lavender-fg); }
+.colorpick .sw.c-apricot  { background: var(--c-apricot-bg);  color: var(--c-apricot-fg); }
+.colorpick .sw.c-rose     { background: var(--c-rose-bg);     color: var(--c-rose-fg); }
+.colorpick .sw.on { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
+
+/* 매주 반복 — 요일 고르기 */
+.dowpick { display: flex; gap: 5px; margin: -4px 0 12px; }
+.dowbtn {
+  flex: 1; padding: 8px 0; border-radius: 8px; font-size: 13px; font-weight: 700;
+  border: 1px solid var(--line); background: var(--paper); color: var(--ink-2);
+}
+.dowbtn.sun { color: var(--sun); }
+.dowbtn.sat { color: var(--sat); }
+.dowbtn.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+/* 반복 수정 범위 묻기 — 편집창 위에 뜹니다 */
+.sheet-back.top { z-index: 70; }
+.ask-h { display: block; font-size: 15px; margin-bottom: 4px; }
+.ask-p { font-size: 13px; color: var(--ink-2); margin-bottom: 10px; }
+
+/* 더보기 메뉴 */
+.menu-item {
+  display: block; width: 100%; text-align: left;
+  padding: 14px 6px; font-size: 15px; font-weight: 600;
+  border-bottom: 1px solid var(--line);
+}
+.menu-item:last-child { border-bottom: none; }
+.menu-item.mute { color: var(--mute); font-weight: 500; }
+
+/* 반복 일정 관리 */
+.sheet-card.wide { max-width: 560px; max-height: 82vh; display: flex; flex-direction: column; }
+.sheet-card.wide #mg-list { overflow-y: auto; flex: 1; }
+.mg-tools { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; }
+.mg-count { margin-left: auto; font-size: 12px; color: var(--mute); }
+.mgrow { cursor: pointer; align-items: flex-start; }
+.mgrow input { width: 18px; height: 18px; flex: 0 0 18px; margin-top: 2px; }
+.mgrow .lbl { display: flex; flex-direction: column; gap: 2px; white-space: normal; }
+.mg-t { font-weight: 600; }
+.mg-s { font-size: 12px; color: var(--mute); }
+.mini.danger { background: var(--hol); color: #fff; padding: 7px 14px; }
 .chk input { width: 18px; height: 18px; }
 
 /* ---------------- 토스트 ---------------- */
@@ -246,7 +411,7 @@ button { cursor: pointer; border: none; background: none; }
 
 /* ---------------- 데스크톱 ---------------- */
 @media (min-width: 900px) {
-  .mcell { min-height: 118px; padding: 7px 6px; }
+  .mcell { --cellpx: 6px; min-height: 118px; padding: 7px var(--cellpx); }
   .pill { font-size: 11px; }
   .week-grid { min-width: 0; }
   .tabbar { order: -1; border-top: none; border-bottom: 1px solid var(--line); }
@@ -290,6 +455,7 @@ button { cursor: pointer; border: none; background: none; }
   .wcol .wtag { font-size: 5.2pt; }
   .wline { height: 8mm; font-size: 6.5pt; border-bottom: 0.2mm solid #ced5dc; }
   .wline.empty::after { display: none; }
+  .wline .grip { display: none; }          /* 손잡이는 인쇄에 나오지 않습니다 */
   .wline .wt { font-size: 5.5pt; }
   .wcol.hol .wnum, .wcol.hol .wtag { color: #c4606c; }
   .wcol.sun .wnum { color: #d98d94; }

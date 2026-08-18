@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" href="icons/icon-192.png">
-<link rel="stylesheet" href="app.css">
+<link rel="stylesheet" href="app.css?v=15">
 </head>
 <body>
 
@@ -41,7 +41,7 @@
     <div class="spacer"></div>
     <span id="sync" class="sync" title="동기화 상태"></span>
     <button class="chip" id="print-btn" hidden>인쇄</button>
-    <button class="chip ghost" id="signout">로그아웃</button>
+    <button class="chip ghost" id="more-btn" aria-label="더보기">⋯</button>
   </header>
 
   <main id="main">
@@ -100,20 +100,109 @@
       <input id="ev-text" type="text" placeholder="예: 치과 예약" autocomplete="off">
     </label>
     <div class="fld-row">
-      <label class="fld"><span>날짜</span><input id="ev-date" type="date"></label>
-      <label class="fld"><span>시간</span><input id="ev-time" type="time"></label>
+      <label class="fld"><span id="ev-date-lbl">날짜</span><input id="ev-date" type="date"></label>
+      <label class="fld" id="ev-end-wrap"><span>종료일</span><input id="ev-enddate" type="date"></label>
+      <label class="fld" id="ev-time-wrap"><span>시간</span><input id="ev-time" type="time"></label>
     </div>
     <label class="chk"><input id="ev-allday" type="checkbox"> 하루 종일</label>
+
+    <div class="fld">
+      <span>색상</span>
+      <div class="colorpick" id="ev-color"></div>
+    </div>
+
+    <label class="fld"><span>반복</span>
+      <select id="ev-rep">
+        <option value="">반복 안 함</option>
+        <option value="DAILY">매일</option>
+        <option value="WEEKLY">매주 (요일 지정)</option>
+        <option value="MONTHLY_DAY">매월 같은 날짜</option>
+        <option value="MONTHLY_NTH">매월 같은 주·요일</option>
+        <option value="YEARLY">매년</option>
+      </select>
+    </label>
+
+    <div id="rep-days" class="dowpick" hidden></div>
+
+    <div id="rep-end" class="fld-row" hidden>
+      <label class="fld"><span>종료</span>
+        <select id="ev-repend">
+          <option value="none">계속 반복</option>
+          <option value="count">횟수만큼</option>
+          <option value="until">날짜까지</option>
+        </select>
+      </label>
+      <label class="fld" id="rep-count-wrap" hidden><span>횟수</span>
+        <input id="ev-repcount" type="number" min="1" max="730" value="10"></label>
+      <label class="fld" id="rep-until-wrap" hidden><span>까지</span>
+        <input id="ev-repuntil" type="date"></label>
+    </div>
+
+    <p id="rep-note" class="fld-note" hidden></p>
+
     <label class="fld"><span>메모</span><textarea id="ev-note" rows="2" placeholder="선택"></textarea></label>
     <button class="btn-danger" id="ev-delete" hidden>이 일정 삭제</button>
+    <button class="btn-danger" id="ev-delete-after" hidden>이 일정 이후 모두 삭제</button>
+    <button class="btn-danger" id="ev-delete-all" hidden>반복 전체 삭제</button>
+  </div>
+</div>
+
+<!-- ============ W 팝업 : 그 날 위클리에 적은 일정 ============ -->
+<div id="wpop" class="sheet-back" hidden>
+  <div class="sheet-card" role="dialog" aria-modal="true">
+    <div class="sheet-head">
+      <button class="mini ghost" id="wp-close">닫기</button>
+      <strong id="wp-title">위클리 일정</strong>
+      <button class="mini solid" id="wp-add">+ 추가</button>
+    </div>
+    <div id="wp-list" class="ev-list"></div>
+  </div>
+</div>
+
+<!-- ============ 반복 일정 수정 범위 묻기 ============ -->
+<div id="scopeask" class="sheet-back top" hidden>
+  <div class="sheet-card" role="dialog" aria-modal="true">
+    <strong class="ask-h">반복 일정 수정</strong>
+    <p class="ask-p" id="ask-sub">어디까지 적용할까요?</p>
+    <button class="menu-item" data-scope="one">이 일정만</button>
+    <button class="menu-item" data-scope="after">이 일정 이후 모두</button>
+    <button class="menu-item" data-scope="all">반복 전체</button>
+    <button class="menu-item mute" data-scope="">취소</button>
+  </div>
+</div>
+
+<!-- ============ 더보기 메뉴 ============ -->
+<div id="menu" class="sheet-back" hidden>
+  <div class="sheet-card" role="dialog" aria-modal="true">
+    <button class="menu-item" id="mi-repeat">반복 일정 관리</button>
+    <button class="menu-item" id="mi-migrate">예전 위클리 일정 옮기기</button>
+    <button class="menu-item" id="mi-signout">로그아웃</button>
+    <button class="menu-item mute" id="mi-close">닫기</button>
+  </div>
+</div>
+
+<!-- ============ 반복 일정 관리 ============ -->
+<div id="mgr" class="sheet-back" hidden>
+  <div class="sheet-card wide" role="dialog" aria-modal="true">
+    <div class="sheet-head">
+      <button class="mini ghost" id="mg-close">닫기</button>
+      <strong>반복 일정 관리</strong>
+      <button class="mini danger" id="mg-del">선택 삭제</button>
+    </div>
+    <div class="mg-tools">
+      <button class="mini" id="mg-all">전체 선택</button>
+      <button class="mini ghost" id="mg-none">해제</button>
+      <span class="mg-count" id="mg-count"></span>
+    </div>
+    <div id="mg-list" class="task-list"></div>
   </div>
 </div>
 
 <div id="toast" class="toast" hidden></div>
 
 <script src="https://accounts.google.com/gsi/client" async defer></script>
-<script src="config.js"></script>
-<script src="korean-calendar.js"></script>
-<script src="app.js"></script>
+<script src="config.js?v=15"></script>
+<script src="korean-calendar.js?v=15"></script>
+<script src="app.js?v=15"></script>
 </body>
 </html>
