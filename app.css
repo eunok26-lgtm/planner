@@ -535,48 +535,105 @@ body.is-dragging { user-select: none; -webkit-user-select: none; cursor: grabbin
 }
 
 /* ============================================================
-   인쇄 — 위클리 화면을 230x100mm 낱장으로 출력
+   인쇄 — 화면과 완전히 분리된 전용 출력물(#printout)만 인쇄합니다.
+   종이 한 장 : 230 x 100mm  (상단 17mm 제본 여백 / 요일 7칸 / 칸당 7줄 8mm)
+   A4 가로    : 297 x 210mm 한 장에 두 주 + 가운데 자르는 선
    ============================================================ */
-@page { size: 230mm 100mm; margin: 0; }
+#printout { display: none; }
 
-.print-binding { display: none; }
+.segbtn { display: flex; gap: 6px; flex-wrap: wrap; }
+.segbtn button {
+  flex: 1 1 auto; padding: 9px 10px; border-radius: 9px;
+  font-size: 13px; font-weight: 700; color: var(--ink-2);
+  border: 1px solid var(--line); background: var(--paper);
+}
+.segbtn button.on { background: var(--ink); border-color: var(--ink); color: var(--paper); }
 
 @media print {
-  #view-week { position: relative; }
-  .print-binding { display: block; position: absolute; left: 0; right: 0; top: 0; height: 17mm; }
-  .print-binding .ph {
+  /* 화면 UI 는 전부 감추고 출력물만 남깁니다 */
+  body > *:not(#printout) { display: none !important; }
+  html, body {
+    height: auto !important; width: auto !important;
+    background: #fff !important; color: #48525e !important;
+    margin: 0 !important; padding: 0 !important;
+  }
+  #printout { display: block !important; }
+
+  .a4page, .cutpage {
+    page-break-after: always; break-after: page;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    overflow: hidden;
+  }
+  .a4page  { width: 297mm; height: 210mm; gap: 4mm; }
+  .cutpage { width: 230mm; height: 100mm; }
+  .a4page:last-child, .cutpage:last-child { page-break-after: auto; break-after: auto; }
+
+  /* 가운데 자르는 선 */
+  .ps-cut { width: 230mm; height: 0; border-top: 0.2mm dashed #b9c0c8; }
+
+  /* ---- 종이 한 장 ---- */
+  .psheet {
+    position: relative; width: 230mm; height: 100mm;
+    padding: 0 8mm 5mm; overflow: hidden;
+    display: flex; flex-direction: column;
+    font-family: "Malgun Gothic", "맑은 고딕", "Apple SD Gothic Neo", sans-serif;
+    outline: 0.2mm dashed #d5dade;          /* 재단 안내선 */
+  }
+  .ps-crop { position: absolute; width: 3mm; height: 3mm; border-color: #b9c0c8; }
+  .ps-crop.tl { left:0; top:0; border-left:.2mm solid; border-top:.2mm solid; }
+  .ps-crop.tr { right:0; top:0; border-right:.2mm solid; border-top:.2mm solid; }
+  .ps-crop.bl { left:0; bottom:0; border-left:.2mm solid; border-bottom:.2mm solid; }
+  .ps-crop.br { right:0; bottom:0; border-right:.2mm solid; border-bottom:.2mm solid; }
+
+  /* 상단 제본 여백 + 타공 (⌀4mm, 피치 10mm, 좌우 대칭) */
+  .ps-bind { position: relative; height: 17mm; flex: 0 0 17mm; margin: 0 -8mm; }
+  .ps-ph {
     position: absolute; top: 6.5mm; width: 4mm; height: 4mm; margin-left: -2mm;
     border: 0.25mm dashed #a7aeb6; border-radius: 50%;
   }
-  .print-binding .pb { position: absolute; left: 8mm; right: 8mm; top: 14.5mm; border-top: 0.2mm dashed #e0e5ea; }
-
-  .topbar, .tabbar, .gate, .toast, .sheet-back { display: none !important; }
-  html, body { background: #fff; color: #48525e; height: auto; }
-  #main { overflow: visible; }
-  .view:not(#view-week) { display: none !important; }
-
-  #view-week { padding: 0; }
-  .week-wrap { overflow: visible; }
-  .week-grid {
-    width: 214mm; min-width: 0; margin: 0 auto;
-    padding-top: 17mm;                      /* 상단 제본 여백 */
+  .ps-ph::after {
+    content: ""; position: absolute; left: 50%; top: 50%;
+    width: 1.6mm; height: 0; border-top: 0.2mm solid #ccd2d8;
+    transform: translate(-50%, -50%);
   }
-  .wcol { padding: 0 1.8mm; border-right: 0.2mm solid #e2e7ec; }
-  .wcol:last-child { border-right: none; padding-right: 0; }
-  .wcol:first-child { padding-left: 0; }
-  .wcol .wh { height: 9.5mm; padding: 0; border-bottom: none; }
-  .wcol.is-today .wh { background: none; margin: 0; padding: 0; }
-  .wcol .wdow { font-size: 6pt; }
-  .wcol .wnum { font-size: 12.5pt; }
-  .wcol .wtag { font-size: 5.2pt; }
-  .wline { height: 8mm; font-size: 6.5pt; border-bottom: 0.2mm solid #ced5dc; }
-  .wline.empty::after { display: none; }
-  .wline .grip { display: none; }          /* 손잡이는 인쇄에 나오지 않습니다 */
-  .wmode, .daychips { display: none !important; }
-  .wcol { display: block !important; }     /* 폰에서 인쇄해도 7칸 그대로 */
-  .wline .wt { font-size: 5.5pt; }
-  .wcol.hol .wnum, .wcol.hol .wtag { color: #c4606c; }
-  .wcol.sun .wnum { color: #d98d94; }
-  .wcol.sat .wnum { color: #8aa9cd; }
-  .wcol .wtag { color: #8faa97; }
+  .ps-bl { position: absolute; left: 8mm; right: 8mm; top: 14.5mm; border-top: 0.2mm dashed #e0e5ea; }
+
+  /* 머리글 */
+  .ps-head {
+    flex: 0 0 auto; display: flex; align-items: flex-end; justify-content: space-between;
+    padding-bottom: 1.5mm; margin-bottom: 2.2mm; border-bottom: 0.45mm solid #77828f;
+  }
+  .ps-ttl { display: flex; align-items: baseline; gap: 2.5mm; }
+  .ps-yy  { font-size: 8pt; letter-spacing: .18em; color: #9aa2ab; }
+  .ps-mm  { font-size: 15pt; font-weight: 800; letter-spacing: -.02em; }
+  .ps-mm i { font-style: normal; font-size: 8.5pt; font-weight: 600; color: #9aa2ab; margin-left: 1mm; }
+  .ps-rng { font-size: 7.5pt; color: #7a848f; }
+  .ps-wk  { font-size: 7pt; font-weight: 700; color: #8d97a3;
+            border: 0.2mm solid #b9c1c9; border-radius: 1mm; padding: 0.7mm 2mm; letter-spacing: .06em; }
+
+  /* 요일 7칸 */
+  .ps-week { flex: 0 0 auto; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+  .ps-col  { min-width: 0; padding: 0 1.8mm; border-left: 0.2mm solid #e2e7ec; }
+  .ps-col:first-child { border-left: none; padding-left: 0; }
+  .ps-col:last-child  { padding-right: 0; }
+  .ps-h    { height: 9.5mm; padding-top: 0.5mm; }
+  .ps-dow  { font-size: 6pt; font-weight: 700; letter-spacing: .14em; color: #9aa2ab; line-height: 1; }
+  .ps-row  { display: flex; align-items: baseline; gap: 1.2mm; margin-top: 0.9mm; min-width: 0; }
+  .ps-num  { font-size: 12.5pt; font-weight: 800; line-height: 1; letter-spacing: -.03em; color: #48525e; }
+  .ps-tag  { font-size: 5.2pt; line-height: 1.15; color: #9aa4ae;
+             white-space: nowrap; overflow: hidden; text-overflow: clip; min-width: 0; }
+  .ps-col.hol .ps-num, .ps-col.hol .ps-tag { color: #c4606c; }
+  .ps-col.hol .ps-tag { font-weight: 700; }
+  .ps-col.sun .ps-num { color: #d98d94; }
+  .ps-col.sat .ps-num { color: #8aa9cd; }
+  .ps-col.term .ps-tag { color: #8faa97; }
+
+  /* 노트 줄 — 8mm x 7줄 */
+  .ps-l {
+    height: 8mm; border-bottom: 0.2mm solid #ced5dc;
+    display: flex; align-items: center; gap: 1.2mm;
+    font-size: 6.5pt; color: #48525e; overflow: hidden; min-width: 0;
+  }
+  .ps-t { font-size: 5.5pt; font-weight: 800; color: #5b7c99; flex: 0 0 auto; }
+  .ps-x { white-space: nowrap; overflow: hidden; text-overflow: clip; min-width: 0; }
 }

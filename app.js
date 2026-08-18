@@ -1242,6 +1242,93 @@ async function saveTaskSheet() {
   }, '저장 중…');
 }
 
+/* ============================================================
+   인쇄 — 화면 레이아웃과 완전히 분리된 전용 출력물을 만듭니다.
+   종이 한 장 = 230 x 100mm (상단 17mm 제본 여백, 요일 7칸, 칸당 7줄 8mm)
+   A4 가로(297x210mm) 한 장에 두 주를 얹고 가운데에 자르는 선을 넣습니다.
+   ============================================================ */
+const PS_HOLES = (() => {
+  let h = '<div class="ps-bl"></div>';
+  for (let x = 10; x <= 220; x += 10) h += `<div class="ps-ph" style="left:${x}mm"></div>`;
+  return h;
+})();
+
+/** 한 주짜리 종이 한 장 */
+function printSheetHTML(monday) {
+  const days = Array.from({ length: 7 }, (_, i) => addDays(monday, i));
+  const yearFirst = startOfWeek(new Date(monday.getFullYear(), 0, 1), CFG.WEEK_START);
+  const weekNo = Math.round((monday - yearFirst) / 604800000) + 1;
+
+  const counts = {};
+  days.forEach(d => { counts[d.getMonth()] = (counts[d.getMonth()] || 0) + 1; });
+  let mainM = days[3].getMonth(), best = -1;
+  for (const m in counts) if (counts[m] > best) { best = counts[m]; mainM = +m; }
+
+  const a = days[0], b = days[6];
+  const range = `${a.getMonth() + 1}.${pad2(a.getDate())} – ${b.getMonth() + 1}.${pad2(b.getDate())}`;
+
+  const cols = days.map(d => {
+    const ds = ymd(d);
+    const hol = holidayOf(d), term = termOf(d);
+    const kind = hol ? 'hol' : (d.getDay() === 0 ? 'sun' : d.getDay() === 6 ? 'sat' : '');
+    const evs = eventsFor(ds, 'w');
+    let lines = '';
+    for (let k = 0; k < Math.max(7, evs.length); k++) {
+      const e = evs[k];
+      lines += `<div class="ps-l">${e
+        ? (e.time ? `<span class="ps-t">${e.time}</span>` : '') + `<span class="ps-x">${esc(e.text)}</span>`
+        : ''}</div>`;
+    }
+    return `<div class="ps-col ${kind} ${term && !hol ? 'term' : ''}">
+        <div class="ps-h">
+          <div class="ps-dow">${DOW_KR[d.getDay()]}</div>
+          <div class="ps-row"><span class="ps-num">${d.getDate()}</span>
+            <span class="ps-tag">${esc(hol || term || '')}</span></div>
+        </div>${lines}
+      </div>`;
+  }).join('');
+
+  return `<section class="psheet">
+      <div class="ps-crop tl"></div><div class="ps-crop tr"></div>
+      <div class="ps-crop bl"></div><div class="ps-crop br"></div>
+      <div class="ps-bind">${PS_HOLES}</div>
+      <div class="ps-head">
+        <div class="ps-ttl"><span class="ps-yy">${monday.getFullYear()}</span>
+          <span class="ps-mm">${mainM + 1}<i>月</i></span></div>
+        <div class="ps-rng">${range}</div>
+        <div class="ps-wk">WEEK ${pad2(weekNo)}</div>
+      </div>
+      <div class="ps-week">${cols}</div>
+    </section>`;
+}
+
+/** 인쇄할 주들을 미리 불러오고 출력물을 만듭니다. */
+async function buildPrintout(startMonday, count, paper) {
+  const weeks = Array.from({ length: count }, (_, i) => addDays(startMonday, i * 7));
+
+  // 필요한 달을 모두 확보 (다음 달로 넘어가는 주도 있으므로)
+  const months = new Set();
+  weeks.forEach(m => { months.add(monthKey(m)); months.add(monthKey(addDays(m, 6))); });
+  for (const mk of months) {
+    const [y, mo] = mk.split('-').map(Number);
+    await loadMonth(new Date(y, mo - 1, 1));
+  }
+
+  const sheets = weeks.map(printSheetHTML);
+  let html = '';
+  if (paper === 'a4') {
+    for (let i = 0; i < sheets.length; i += 2) {
+      html += `<div class="a4page">${sheets[i]}<div class="ps-cut"></div>${sheets[i + 1] || ''}</div>`;
+    }
+  } else {
+    html = sheets.map(x => `<div class="cutpage">${x}</div>`).join('');
+  }
+  $('#printout').innerHTML = html;
+  $('#pagerule').textContent = (paper === 'a4')
+    ? '@page { size: 297mm 210mm; margin: 0; }'
+    : '@page { size: 230mm 100mm; margin: 0; }';
+}
+
 /* ---------------- 반복 일정 관리 (일괄 삭제) ---------------- */
 let series = [];
 
@@ -1457,7 +1544,31 @@ function wire() {
   $('#prev').onclick = () => shift(-1);
   $('#next').onclick = () => shift(1);
   $('#today-btn').onclick = () => { state.anchor = new Date(); renderAll(); syncCurrentView(); };
-  $('#print-btn').onclick = () => window.print();
+  $('#print-btn').onclick = () => {
+    const mon = startOfWeek(state.anchor, CFG.WEEK_START);
+    $('#pd-note').textContent =
+      `${mon.getMonth() + 1}월 ${mon.getDate()}일 주부터 인쇄합니다.`;
+    $('#pdlg').hidden = false;
+  };
+  $('#pd-cancel').onclick = () => { $('#pdlg').hidden = true; };
+  $('#pdlg').onclick = e => { if (e.target.id === 'pdlg') $('#pdlg').hidden = true; };
+  const seg = (box, e) => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    $$(box + ' button').forEach(x => x.classList.toggle('on', x === b));
+  };
+  $('#pd-weeks').onclick = e => seg('#pd-weeks', e);
+  $('#pd-paper').onclick = e => seg('#pd-paper', e);
+  $('#pd-go').onclick = () => {
+    const n = Number($('#pd-weeks button.on')?.dataset.n || 2);
+    const paper = $('#pd-paper button.on')?.dataset.p || 'a4';
+    $('#pdlg').hidden = true;
+    guard(async () => {
+      await buildPrintout(startOfWeek(state.anchor, CFG.WEEK_START), n, paper);
+      await new Promise(r => setTimeout(r, 120));   // 배치가 잡힌 뒤 인쇄
+      window.print();
+    }, '인쇄 준비 중…');
+  };
   $$('.tab').forEach(t => t.onclick = () => showView(t.dataset.view));
 
   buildDayPicker();

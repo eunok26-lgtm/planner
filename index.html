@@ -12,7 +12,8 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" href="icons/icon-192.png">
-<link rel="stylesheet" href="app.css?v=25">
+<link rel="stylesheet" href="app.css?v=27">
+<style id="pagerule">@page { size: 297mm 210mm; margin: 0; }</style>
 </head>
 <body>
 
@@ -220,11 +221,40 @@
   </div>
 </div>
 
+<!-- ============ 인쇄 옵션 ============ -->
+<div id="pdlg" class="sheet-back" hidden>
+  <div class="sheet-card" role="dialog" aria-modal="true">
+    <div class="sheet-head">
+      <button class="mini ghost" id="pd-cancel">취소</button>
+      <strong>위클리 인쇄</strong>
+      <button class="mini solid" id="pd-go">인쇄</button>
+    </div>
+    <div class="fld">
+      <span>몇 주치</span>
+      <div class="segbtn" id="pd-weeks">
+        <button data-n="1">1주</button><button data-n="2" class="on">2주</button>
+        <button data-n="4">4주</button><button data-n="8">8주</button>
+      </div>
+    </div>
+    <div class="fld">
+      <span>용지</span>
+      <div class="segbtn" id="pd-paper">
+        <button data-p="a4" class="on">A4 가로 (한 장에 2주)</button>
+        <button data-p="cut">실제 크기 230×100</button>
+      </div>
+    </div>
+    <p class="fld-note" id="pd-note"></p>
+  </div>
+</div>
+
+<!-- 인쇄 전용 출력물 — 화면에는 안 보이고 인쇄할 때만 쓰입니다 -->
+<div id="printout" aria-hidden="true"></div>
+
 <div id="toast" class="toast" hidden></div>
 
 <script src="https://accounts.google.com/gsi/client" async defer></script>
-<script src="config.js?v=25"></script>
-<script src="korean-calendar.js?v=25"></script>
-<script src="app.js?v=25"></script>
+<script src="config.js?v=27"></script>
+<script src="korean-calendar.js?v=27"></script>
+<script src="app.js?v=27"></script>
 </body>
 </html>
