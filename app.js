@@ -838,6 +838,13 @@ function renderMonth(pass = 0) {
    ============================================================ */
 const LINES = 7;
 
+/* 폰에서의 위클리 보기 방식 : 'stack' 요일 카드 세로 스택 / 'day' 하루씩 넘겨보기 */
+let weekMode   = localStorage.getItem('planner.weekmode') || 'stack';
+let weekDayIdx = null;          // 'day' 방식에서 고른 요일 (0~6)
+let weekScrollToday = false;    // 이번 주를 열 때 오늘로 스크롤할지
+
+const isPhone = () => window.matchMedia('(max-width: 600px)').matches;
+
 function renderWeek() {
   const mon = startOfWeek(state.anchor, CFG.WEEK_START);
   const sun = addDays(mon, 6);
@@ -846,6 +853,27 @@ function renderWeek() {
   $('#subtitle').textContent = mon.getFullYear() + '년';
 
   const today = new Date();
+  const phone = isPhone();
+
+  // 'day' 방식에서 볼 요일 정하기 — 이번 주면 오늘, 아니면 첫날
+  if (weekDayIdx === null || weekDayIdx < 0 || weekDayIdx > 6) {
+    const t = Math.round((startOfWeek(today, CFG.WEEK_START) - mon) / 86400000);
+    weekDayIdx = (t === 0) ? today.getDay() === 0 && CFG.WEEK_START === 1 ? 6
+                           : (today.getDay() - CFG.WEEK_START + 7) % 7 : 0;
+  }
+
+  $('#view-week').className = 'view' + (phone ? ' m-' + weekMode : '');
+  $$('#week-mode button').forEach(b => b.classList.toggle('on', b.dataset.m === weekMode));
+
+  // 날짜 칩 ('day' 방식에서만 보입니다)
+  $('#week-chips').innerHTML = Array.from({ length: 7 }, (_, i) => {
+    const d = addDays(mon, i), ds = ymd(d);
+    const n = eventsFor(ds, 'w').length;
+    return `<button class="chip-d ${dayKind(d)} ${i === weekDayIdx ? 'on' : ''}" data-i="${i}">
+        <span class="cd">${DOW_KR[d.getDay()]}</span><span class="cn">${d.getDate()}</span>
+        <span class="cdot" ${n ? '' : 'hidden'}></span></button>`;
+  }).join('');
+
   let html = '';
   for (let i = 0; i < 7; i++) {
     const d = addDays(mon, i);
@@ -853,6 +881,9 @@ function renderWeek() {
     const label = holidayOf(d) || termOf(d) || '';
     const evs = eventsFor(ds, 'w');      // 월간에서 넣은 일정은 위클리에 나오지 않습니다
 
+    // 줄은 항상 7개를 만들어 둡니다 (인쇄본과 같은 구성).
+    // 세로로 쌓아 볼 때만 남는 빈 줄에 xline 을 붙여 화면에서 감춥니다.
+    const keep = Math.max(3, evs.length + 2);
     let lines = '';
     for (let k = 0; k < Math.max(LINES, evs.length); k++) {
       const e = evs[k];
@@ -861,10 +892,11 @@ function renderWeek() {
              <span class="grip" aria-hidden="true"></span>
              ${e.time ? `<span class="wt">${e.time}</span>` : ''}
              <span class="wx">${esc(e.text)}</span></button>`
-        : `<button class="wline empty" data-date="${ds}"></button>`;
+        : `<button class="wline empty${k >= keep ? ' xline' : ''}" data-date="${ds}"></button>`;
     }
 
-    html += `<div class="wcol ${dayKind(d)} ${sameDay(d, today) ? 'is-today' : ''}" data-date="${ds}">
+    html += `<div class="wcol ${dayKind(d)} ${sameDay(d, today) ? 'is-today' : ''}
+                        ${i === weekDayIdx ? 'is-sel' : ''}" data-date="${ds}" data-i="${i}">
         <div class="wh">
           <div class="wdow">${DOW_KR[d.getDay()]}</div>
           <div class="wrow"><span class="wnum">${d.getDate()}</span>
@@ -874,6 +906,13 @@ function renderWeek() {
       </div>`;
   }
   $('#week-grid').innerHTML = html;
+
+  // 세로 스택에서는 오늘 칸이 바로 보이도록 한 번 스크롤합니다
+  if (weekScrollToday && phone && weekMode === 'stack') {
+    weekScrollToday = false;
+    const el = $('#week-grid .wcol.is-today');
+    if (el) requestAnimationFrame(() => el.scrollIntoView({ block: 'start' }));
+  }
 }
 
 /* ============================================================
@@ -1241,6 +1280,7 @@ function showView(v) {
   renderAll();
   // 화면에 실제로 그려진 뒤 높이를 다시 재서 줄 수를 맞춥니다
   if (v === 'month') requestAnimationFrame(() => renderMonth());
+  if (v === 'week') { weekScrollToday = true; renderWeek(); }
   syncCurrentView();
 }
 
@@ -1269,6 +1309,8 @@ function shift(dir) {
     state.anchor = new Date(state.anchor.getFullYear(), state.anchor.getMonth() + dir, 1);
   } else if (state.view === 'week') {
     state.anchor = addDays(state.anchor, dir * 7);
+    weekDayIdx = null;                 // 새 주에서는 오늘(또는 첫날)로
+    weekScrollToday = true;
   }
   renderAll();
   syncCurrentView();
@@ -1450,6 +1492,44 @@ function wire() {
     const line = e.target.closest('.wline');
     if (line) openSheet(line.closest('.wcol').dataset.date, line.dataset.id || null, 'w');
   };
+
+  /* 위클리 보기 전환 (폰) */
+  $('#week-mode').onclick = e => {
+    const b = e.target.closest('button[data-m]');
+    if (!b) return;
+    weekMode = b.dataset.m;
+    localStorage.setItem('planner.weekmode', weekMode);
+    weekScrollToday = (weekMode === 'stack');
+    renderWeek();
+  };
+
+  /* 날짜 칩 */
+  $('#week-chips').onclick = e => {
+    const b = e.target.closest('.chip-d');
+    if (!b) return;
+    weekDayIdx = Number(b.dataset.i);
+    renderWeek();
+  };
+
+  /* '하루' 방식에서 좌우로 밀어 날짜 넘기기 */
+  let sw = null;
+  $('#week-grid').addEventListener('pointerdown', e => {
+    if (!(isPhone() && weekMode === 'day')) return;
+    if (e.target.closest('.grip')) return;              // 순서 바꾸기와 겹치지 않게
+    sw = { x: e.clientX, y: e.clientY };
+  });
+  $('#week-grid').addEventListener('pointerup', e => {
+    if (!sw) return;
+    const dx = e.clientX - sw.x, dy = e.clientY - sw.y;
+    sw = null;
+    if (Math.abs(dx) < 60 || Math.abs(dy) > 40) return;
+    const next = weekDayIdx + (dx < 0 ? 1 : -1);
+    if (next < 0)      { shift(-1); weekDayIdx = 6; renderWeek(); }
+    else if (next > 6) { shift(1);  weekDayIdx = 0; renderWeek(); }
+    else               { weekDayIdx = next; renderWeek(); }
+    dragBlockClick = true;
+    setTimeout(() => { dragBlockClick = false; }, 350);
+  });
 
   /* 끌어서 순서 바꾸기 */
   enableDragSort($('#month-grid'), {

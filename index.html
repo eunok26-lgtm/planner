@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" href="icons/icon-192.png">
-<link rel="stylesheet" href="app.css?v=20">
+<link rel="stylesheet" href="app.css?v=23">
 </head>
 <body>
 
@@ -55,6 +55,12 @@
     <section class="view" id="view-week" hidden>
       <!-- 인쇄할 때만 나타나는 제본 타공 표시 (종이 양식과 동일) -->
       <div class="print-binding" id="print-binding" aria-hidden="true"></div>
+      <!-- 폰에서만 보이는 보기 전환 / 날짜 칩 -->
+      <div class="wmode" id="week-mode">
+        <button data-m="stack">목록</button>
+        <button data-m="day">하루</button>
+      </div>
+      <div class="daychips" id="week-chips"></div>
       <div class="week-wrap"><div class="week-grid" id="week-grid"></div></div>
     </section>
 
@@ -201,8 +207,8 @@
 <div id="toast" class="toast" hidden></div>
 
 <script src="https://accounts.google.com/gsi/client" async defer></script>
-<script src="config.js?v=20"></script>
-<script src="korean-calendar.js?v=20"></script>
-<script src="app.js?v=20"></script>
+<script src="config.js?v=23"></script>
+<script src="korean-calendar.js?v=23"></script>
+<script src="app.js?v=23"></script>
 </body>
 </html>

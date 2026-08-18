@@ -128,7 +128,7 @@ button { cursor: pointer; border: none; background: none; }
 
 /* ---------------- 월간 ---------------- */
 .dow-head {
-  display: grid; grid-template-columns: repeat(7, 1fr);
+  display: grid; grid-template-columns: repeat(7, minmax(0, 1fr));
   padding: 8px 0; border-bottom: 1px solid var(--line);
   position: sticky; top: 0; background: var(--paper); z-index: 5;
 }
@@ -144,12 +144,15 @@ button { cursor: pointer; border: none; background: none; }
   --headh-tight: 20px; /* 절기줄을 접었을 때 */
   flex: 1; min-height: 0;
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  /* minmax(0,1fr) 이어야 칸 너비가 항상 1/7 로 똑같이 유지됩니다.
+     그냥 1fr 로 두면 긴 제목이 칸을 밀어내 가로로 늘어납니다. */
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   grid-template-rows: repeat(var(--rows, 6), minmax(0, 1fr));
+  overflow: hidden;
 }
 .mcell {
   --cellpx: 4px;                       /* 칸 좌우 여백 — 막대를 이어붙일 때 이 값을 씁니다 */
-  min-height: 0; padding: 5px var(--cellpx); border-bottom: 1px solid var(--line);
+  min-height: 0; min-width: 0; padding: 5px var(--cellpx); border-bottom: 1px solid var(--line);
   border-right: 1px solid var(--line); text-align: left;
   display: flex; flex-direction: column; gap: 2px;
 }
@@ -159,7 +162,8 @@ button { cursor: pointer; border: none; background: none; }
 .mcell.other .dn, .mcell.other .dt { opacity: .35; }
 .mcell.other .pill { opacity: .45; }
 .mcell.is-today { background: var(--today); }
-.mcell .dhead { display: flex; align-items: center; gap: 3px; min-height: 16px; }
+.mcell .dhead { display: flex; align-items: center; gap: 3px; min-height: 16px; min-width: 0; }
+.mcell .dn { flex: 0 0 auto; }
 .mcell .dn { font-size: 14px; font-weight: 800; line-height: 1.1; }
 
 /* W 버튼 — 그 날 위클리에 적은 일정을 팝업으로 열어 봅니다 */
@@ -178,7 +182,7 @@ button { cursor: pointer; border: none; background: none; }
 .mcell.hol .dn, .mcell.hol .dt { color: var(--hol); }
 .mcell.sun .dn { color: var(--sun); }
 .mcell.sat .dn { color: var(--sat); }
-.mcell .evs { display: flex; flex-direction: column; gap: 2px; margin-top: 2px; }
+.mcell .evs { display: flex; flex-direction: column; gap: 2px; margin-top: 2px; min-width: 0; }
 .pill {
   font-size: 10px; line-height: 1.35; padding: 1px 4px; border-radius: 4px;
   background: color-mix(in srgb, var(--accent) 14%, transparent);
@@ -188,7 +192,7 @@ button { cursor: pointer; border: none; background: none; }
 .pill:not(.bar) { touch-action: none; cursor: grab; }   /* 끌어서 순서 바꾸기 */
 
 /* 줄 높이를 고정해야 옆 칸의 막대와 정확히 같은 높이에 옵니다 */
-.pill, .evspacer { height: 15px; line-height: 13px; flex: 0 0 15px; }
+.pill, .evspacer { height: 15px; line-height: 13px; flex: 0 0 15px; min-width: 0; max-width: 100%; }
 .evspacer { visibility: hidden; }
 
 /* ---- 여러 날에 걸친 일정 : 칸을 넘어 한 줄로 이어 그립니다 ---- */
@@ -261,6 +265,35 @@ button { cursor: pointer; border: none; background: none; }
 .wline.c-lavender .wx, .wline.c-lavender .wt { color: var(--c-lavender-fg); }
 .wline.c-apricot  .wx, .wline.c-apricot  .wt { color: var(--c-apricot-fg); }
 .wline.c-rose     .wx, .wline.c-rose     .wt { color: var(--c-rose-fg); }
+
+/* ---- 위클리 : 폰 전용 보기 전환 / 날짜 칩 ----
+   기본은 숨김. 아래 max-width:600px 안에서만 나타납니다.
+   태블릿·PC·인쇄는 지금까지의 7칸 가로 배치를 그대로 씁니다. */
+.wmode, .daychips { display: none; }
+
+.wmode { gap: 4px; padding: 8px 12px 0; }
+.wmode button {
+  flex: 0 0 auto; padding: 5px 14px; border-radius: 999px;
+  font-size: 12px; font-weight: 700; color: var(--mute);
+  border: 1px solid var(--line); background: var(--card);
+}
+.wmode button.on { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+
+.daychips { gap: 4px; padding: 8px 10px; overflow-x: auto; }
+.chip-d {
+  flex: 1 1 0; min-width: 0; padding: 6px 0 5px; border-radius: 10px;
+  display: flex; flex-direction: column; align-items: center; gap: 1px;
+  border: 1px solid var(--line); background: var(--card);
+}
+.chip-d .cd { font-size: 10px; font-weight: 700; color: var(--mute); }
+.chip-d .cn { font-size: 15px; font-weight: 800; line-height: 1.1; }
+.chip-d .cdot { width: 4px; height: 4px; border-radius: 50%; background: var(--accent); }
+.chip-d.sun .cn { color: var(--sun); }
+.chip-d.sat .cn { color: var(--sat); }
+.chip-d.hol .cn { color: var(--hol); }
+.chip-d.on { background: var(--ink); border-color: var(--ink); }
+.chip-d.on .cd, .chip-d.on .cn { color: var(--paper); }
+.chip-d.on .cdot { background: var(--paper); }
 
 /* ---------------- 오늘 ---------------- */
 .today-head { padding: 6px 0 2px; }
@@ -458,6 +491,39 @@ body.is-dragging { user-select: none; -webkit-user-select: none; cursor: grabbin
   .wbtn { font-size: 7px; padding: 1px 2px; }
   .wbtn sup { font-size: 6px; }
   .tab { padding: 8px 0 7px; font-size: 11px; }
+
+  /* ---- 위클리 : 폰에서만 세로 배치로 바뀝니다 ---- */
+  .wmode { display: flex; }
+  .week-wrap { overflow-x: hidden; }
+  #view-week .week-grid { grid-template-columns: 1fr; min-width: 0; }
+  #view-week .wcol { border-right: none; }
+
+  /* 안 A · 요일 카드 세로 스택 */
+  #view-week.m-stack .wcol {
+    border-bottom: 1px solid var(--line); padding: 10px 14px 6px;
+  }
+  #view-week.m-stack .wcol .wh {
+    display: flex; align-items: baseline; gap: 8px;
+    padding-bottom: 5px; border-bottom: 1px solid var(--line);
+  }
+  #view-week.m-stack .wcol .wrow { margin-top: 0; }
+  #view-week.m-stack .wcol.is-today .wh { margin: 0; padding: 0 0 5px; background: none; }
+  #view-week.m-stack .wcol.is-today { background: var(--today); }
+  #view-week.m-stack .wline { height: 34px; font-size: 14px; }
+  #view-week.m-stack .wline.xline { display: none; }   /* 화면에서만 감춥니다 (인쇄엔 나옴) */
+  #view-week.m-stack .wline .wt { font-size: 12px; }
+
+  /* 안 B · 하루씩 넘겨보기 */
+  #view-week.m-day .daychips { display: flex; }
+  #view-week.m-day .wcol { display: none; padding: 4px 14px; }
+  #view-week.m-day .wcol.is-sel { display: block; }
+  #view-week.m-day .wcol .wh { padding-bottom: 8px; }
+  #view-week.m-day .wcol .wnum { font-size: 26px; }
+  #view-week.m-day .wcol .wdow { font-size: 12px; }
+  #view-week.m-day .wcol .wtag { font-size: 12px; }
+  #view-week.m-day .wline { height: 46px; font-size: 15px; }
+  #view-week.m-day .wline .wt { font-size: 13px; }
+  #view-week.m-day .wline .grip { height: 22px; }
 }
 
 /* ============================================================
@@ -498,6 +564,8 @@ body.is-dragging { user-select: none; -webkit-user-select: none; cursor: grabbin
   .wline { height: 8mm; font-size: 6.5pt; border-bottom: 0.2mm solid #ced5dc; }
   .wline.empty::after { display: none; }
   .wline .grip { display: none; }          /* 손잡이는 인쇄에 나오지 않습니다 */
+  .wmode, .daychips { display: none !important; }
+  .wcol { display: block !important; }     /* 폰에서 인쇄해도 7칸 그대로 */
   .wline .wt { font-size: 5.5pt; }
   .wcol.hol .wnum, .wcol.hol .wtag { color: #c4606c; }
   .wcol.sun .wnum { color: #d98d94; }
