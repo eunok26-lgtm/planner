@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f7f5f2">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="플래너">
+<title>플래너</title>
+
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+
+<!-- ============ 로그인 화면 ============ -->
+<div id="gate" class="gate">
+  <div class="gate-card">
+    <div class="gate-mark"></div>
+    <h1>플래너</h1>
+    <p class="gate-sub">구글 캘린더에 연결해서<br>월간 · 위클리 · 할 일 · 쇼핑을 한 곳에서 관리합니다.</p>
+    <button id="signin" class="btn-primary">구글 계정으로 시작하기</button>
+    <p id="gate-msg" class="gate-msg"></p>
+  </div>
+</div>
+
+<!-- ============ 앱 ============ -->
+<div id="app" class="app" hidden>
+
+  <header class="topbar">
+    <button class="nav-btn" id="prev" aria-label="이전">‹</button>
+    <div class="topbar-title">
+      <strong id="title">—</strong>
+      <span id="subtitle"></span>
+    </div>
+    <button class="nav-btn" id="next" aria-label="다음">›</button>
+    <button class="chip" id="today-btn">오늘</button>
+    <div class="spacer"></div>
+    <span id="sync" class="sync" title="동기화 상태"></span>
+    <button class="chip" id="print-btn" hidden>인쇄</button>
+    <button class="chip ghost" id="signout">로그아웃</button>
+  </header>
+
+  <main id="main">
+    <!-- 월간 -->
+    <section class="view" id="view-month">
+      <div class="dow-head" id="month-dow"></div>
+      <div class="month-grid" id="month-grid"></div>
+    </section>
+
+    <!-- 위클리 -->
+    <section class="view" id="view-week" hidden>
+      <!-- 인쇄할 때만 나타나는 제본 타공 표시 (종이 양식과 동일) -->
+      <div class="print-binding" id="print-binding" aria-hidden="true"></div>
+      <div class="week-wrap"><div class="week-grid" id="week-grid"></div></div>
+    </section>
+
+    <!-- 오늘 할 일 -->
+    <section class="view pane" id="view-today" hidden>
+      <div class="today-head" id="today-head"></div>
+      <h2 class="pane-h">오늘 일정</h2>
+      <div id="today-events" class="ev-list"></div>
+      <h2 class="pane-h">할 일<button class="mini" id="add-todo">+ 추가</button></h2>
+      <div id="todo-list" class="task-list"></div>
+    </section>
+
+    <!-- 쇼핑 -->
+    <section class="view pane" id="view-shop" hidden>
+      <div class="shop-add">
+        <input id="shop-input" type="text" placeholder="살 것 입력 후 Enter" autocomplete="off">
+        <select id="shop-cat"></select>
+        <button class="mini solid" id="shop-add-btn">추가</button>
+      </div>
+      <div id="shop-list" class="shop-list"></div>
+      <button class="mini ghost" id="shop-clear">완료 항목 비우기</button>
+    </section>
+  </main>
+
+  <nav class="tabbar">
+    <button class="tab is-on" data-view="month"><span>월간</span></button>
+    <button class="tab" data-view="week"><span>위클리</span></button>
+    <button class="tab" data-view="today"><span>오늘</span></button>
+    <button class="tab" data-view="shop"><span>쇼핑</span></button>
+  </nav>
+</div>
+
+<!-- ============ 일정 편집 시트 ============ -->
+<div id="sheet" class="sheet-back" hidden>
+  <div class="sheet-card" role="dialog" aria-modal="true">
+    <div class="sheet-head">
+      <button class="mini ghost" id="ev-cancel">취소</button>
+      <strong id="ev-title">일정</strong>
+      <button class="mini solid" id="ev-save">저장</button>
+    </div>
+    <label class="fld">
+      <span>내용</span>
+      <input id="ev-text" type="text" placeholder="예: 치과 예약" autocomplete="off">
+    </label>
+    <div class="fld-row">
+      <label class="fld"><span>날짜</span><input id="ev-date" type="date"></label>
+      <label class="fld"><span>시간</span><input id="ev-time" type="time"></label>
+    </div>
+    <label class="chk"><input id="ev-allday" type="checkbox"> 하루 종일</label>
+    <label class="fld"><span>메모</span><textarea id="ev-note" rows="2" placeholder="선택"></textarea></label>
+    <button class="btn-danger" id="ev-delete" hidden>이 일정 삭제</button>
+  </div>
+</div>
+
+<div id="toast" class="toast" hidden></div>
+
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="config.js"></script>
+<script src="korean-calendar.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

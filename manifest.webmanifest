@@ -1,0 +1,17 @@
+{
+  "name": "플래너 — 월간 · 위클리 · 할 일 · 쇼핑",
+  "short_name": "플래너",
+  "description": "구글 캘린더와 연동되는 월간 · 위클리 스케줄러",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f7f5f2",
+  "theme_color": "#f7f5f2",
+  "lang": "ko",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
