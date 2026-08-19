@@ -726,11 +726,11 @@ function setSync(text, cls = '') {
   el.className = 'sync ' + cls;
 }
 let toastTimer;
-function toast(msg) {
+function toast(msg, ms = 2200) {
   const t = $('#toast');
   t.textContent = msg; t.hidden = false;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { t.hidden = true; }, 2200);
+  toastTimer = setTimeout(() => { t.hidden = true; }, ms);
 }
 
 async function guard(fn, busyMsg = '동기화 중…') {
@@ -2001,10 +2001,29 @@ function wire() {
 /* ============================================================
    11. 시작
    ============================================================ */
+/* 아이폰은 사용자가 한 번 확대하면 그 배율을 계속 유지합니다.
+   웹페이지가 배율을 강제로 되돌리는 것은 접근성 때문에 막혀 있어서,
+   확대된 상태로 열렸을 때 한 번만 알려주는 것까지가 할 수 있는 일입니다.
+   (확대가 저절로 걸리던 원인 — 입력칸 글씨 16px 미만 — 은 이미 없앴습니다) */
+function checkZoom() {
+  const vv = window.visualViewport;
+  if (!vv || vv.scale <= 1.05) return;
+  if (sessionStorage.getItem('planner.zoomhint')) return;
+  sessionStorage.setItem('planner.zoomhint', '1');
+  toast('화면이 확대되어 있습니다 — 두 손가락으로 오므리면 맞춰집니다', 5000);
+}
+
 async function start() {
   $('#gate').hidden = true;
   $('#app').hidden = false;
   showView('month');
+  setTimeout(checkZoom, 800);
+  if (window.visualViewport) {
+    let zt;
+    window.visualViewport.addEventListener('resize', () => {
+      clearTimeout(zt); zt = setTimeout(checkZoom, 400);
+    });
+  }
 }
 
 /* 요청하는 권한이 바뀌면 예전 로그인으로는 안 되므로 다시 동의를 받습니다.
