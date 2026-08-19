@@ -431,6 +431,52 @@ async function updateEvent(id, f, cal, ev) {
   await refreshAround(parseYmd(f.date));
 }
 
+/* 반복 일정의 '맨 위 고정'은 회차가 아니라 원본에 기록합니다.
+   구글이 회차를 돌려줄 때 부가정보를 함께 주지 않는 경우가 있어,
+   회차에만 적어두면 다시 불러왔을 때 표시가 사라집니다. */
+const seriesPin = new Map();      // seriesId → true/false
+
+/** 반복 원본에 고정 여부를 기록합니다 (다른 부가정보는 그대로 둡니다). */
+async function setSeriesPin(seriesId, cal, pin) {
+  const m = await api(`${calBase(cal || CAL_M)}/${encodeURIComponent(seriesId)}`);
+  const priv = { ...(m.extendedProperties?.private || {}) };
+  if (pin) priv.plannerPin = '1'; else delete priv.plannerPin;
+  await api(`${calBase(cal || CAL_M)}/${encodeURIComponent(seriesId)}`,
+            { method: 'PATCH', body: JSON.stringify({ extendedProperties: { private: priv } }) });
+  seriesPin.set(seriesId, !!pin);
+}
+
+/** 화면에 있는 반복 일정들의 고정 여부를 원본에서 확인해 맞춰 줍니다.
+    원본당 한 번만 읽고 기억합니다. */
+async function applySeriesPins() {
+  const need = new Map();
+  for (const arr of store.events.values())
+    for (const e of arr)
+      if (e.seriesId && !seriesPin.has(e.seriesId)) need.set(e.seriesId, e.cal);
+
+  for (const [sid, cal] of need) {
+    try {
+      const m = await api(`${calBase(cal || CAL_M)}/${encodeURIComponent(sid)}`);
+      seriesPin.set(sid, m.extendedProperties?.private?.plannerPin === '1');
+    } catch (e) { seriesPin.set(sid, false); }
+  }
+
+  let changed = false;
+  for (const arr of store.events.values()) {
+    let touched = false;
+    for (const e of arr) {
+      if (!e.seriesId || !seriesPin.has(e.seriesId)) continue;
+      const v = seriesPin.get(e.seriesId);
+      if (e.pin !== v) { e.pin = v; touched = true; }
+    }
+    if (touched) {
+      arr.sort((a, b) => (b.pin ? 1 : 0) - (a.pin ? 1 : 0) || orderKey(a) - orderKey(b));
+      changed = true;
+    }
+  }
+  return changed;
+}
+
 /** 일정을 다른 분류(=다른 캘린더)로 옮깁니다. */
 async function moveEventToCal(id, fromCal, toCal) {
   await api(`${calBase(fromCal)}/${encodeURIComponent(id)}/move?destination=${encodeURIComponent(toCal)}`,
@@ -918,7 +964,9 @@ function renderMonth(pass = 0) {
                           ${sameDay(d, today) ? 'is-today' : ''}" data-date="${ds}">
           <div class="dhead"><span class="dn">${d.getDate()}</span>${wbtn}</div>
           <div class="dt">${esc(label)}</div>
-          <div class="evs">${rows}${hidden > 0 ? `<span class="more">+${hidden}</span>` : ''}</div>
+          <div class="evs">${rows}${hidden > 0
+              ? `<button class="more" data-date="${ds}" title="이 날 일정 모두 보기">+${hidden}</button>`
+              : ''}</div>
         </div>`;
     });
   }
@@ -1141,7 +1189,9 @@ function openSheet(dateStr, id, src) {
   }
 
   $('#ev-pin-wrap').hidden = !isW;          // 고정은 위클리에서만
-  $('#ev-pin').checked = !!(ev && ev.pin);
+  const pin0 = ev ? (ev.seriesId && seriesPin.has(ev.seriesId) ? seriesPin.get(ev.seriesId) : !!ev.pin) : false;
+  $('#ev-pin').checked = pin0;
+  editPin0 = pin0;
 
   setColorPick(ev ? ev.color : '');
   $('#ev-allday').checked = ev ? ev.allDay : true;
@@ -1215,6 +1265,7 @@ function syncRepFields() {
 let REP_OPTIONS = '';
 let seriesUntil0 = '';      // 편집창을 열 때의 반복 종료일 (바뀌었는지 비교용)
 let editNote = '';          // 편집창에 메모 칸은 없지만, 구글에 적힌 메모는 지우지 않고 그대로 둡니다
+let editPin0 = false;       // 편집창을 열 때의 고정 상태 (바뀌었는지 비교용)
 
 /** 반복 규칙에서 종료일(UNTIL)을 'YYYY-MM-DD' 로 꺼냅니다. 없으면 빈 문자열. */
 function untilOfRule(recurrence) {
@@ -1350,6 +1401,11 @@ async function saveSheet() {
     if (inSeries && $('#ev-seriesuntil').value !== seriesUntil0) {
       await setSeriesUntil(ev.seriesId, ev.cal, $('#ev-seriesuntil').value);
     }
+    // 고정도 반복 전체에 걸리는 표시이므로 원본에 기록합니다
+    if (inSeries && f.pin !== editPin0) {
+      await setSeriesPin(ev.seriesId, ev.cal, f.pin);
+      store.loadedMonths.clear();
+    }
     if (!target) {
       await createEvent(f);
     } else if (!inSeries) {
@@ -1372,18 +1428,26 @@ async function saveSheet() {
   }, '저장 중…');
 }
 
-/* ---------------- W 팝업 : 그 날 위클리에 적은 일정 ---------------- */
-function openWeeklyPopup(dateStr) {
+/* ---------------- 날짜 팝업 : 그 날 일정 모두 보기 ----------------
+   월간의 "+N" 과 위클리 표시(W 버튼)가 같은 창을 씁니다. */
+let popScope = 'w';   // 'm' 월간 / 'w' 위클리
+
+function openDayPopup(dateStr, scope) {
+  popScope = scope;
   const d = parseYmd(dateStr);
-  const list = eventsFor(dateStr, 'w');
+  const list = eventsFor(dateStr, scope === 'm' ? 'm' : 'w');
+  const hol = holidayOf(d), term = termOf(d);
 
   $('#wp-title').textContent =
-    `${d.getMonth() + 1}월 ${d.getDate()}일 (${DOW_KR[d.getDay()]}) · 위클리`;
+    `${d.getMonth() + 1}월 ${d.getDate()}일 (${DOW_KR[d.getDay()]})`
+    + (scope === 'm' ? '' : ' · 위클리')
+    + (hol ? ` · ${hol}` : (term ? ` · ${term}` : ''));
+
   $('#wp-list').innerHTML = list.length
-    ? list.map(e => `<button class="ev" data-id="${e.id}">
-         <span class="t">${e.allDay ? '종일' : e.time}</span>
+    ? list.map(e => `<button class="ev${colorCls(e)}" data-id="${e.id}">
+         <span class="t">${e.allDay ? (e.multi ? `${e.days}일` : '종일') : e.time}</span>
          <span class="x">${esc(e.text)}</span></button>`).join('')
-    : '<div class="empty-note">위클리에 적은 일정이 없습니다.</div>';
+    : `<div class="empty-note">${scope === 'm' ? '등록된' : '위클리에 적은'} 일정이 없습니다.</div>`;
 
   $('#wpop').dataset.date = dateStr;
   $('#wpop').hidden = false;
@@ -1649,6 +1713,7 @@ function syncCurrentView() {
         const sun = addDays(mon, 6);
         if (mon.getMonth() !== sun.getMonth()) await loadMonth(sun);
       }
+      await applySeriesPins();
     } else if (state.view === 'today') {
       await loadMonth(new Date());
       await loadTasks();
@@ -1869,7 +1934,9 @@ function wire() {
   $('#month-grid').onclick = e => {
     if (dragBlockClick) return;                 // 방금 끌어놓은 것이면 편집창을 열지 않습니다
     const wb = e.target.closest('.wbtn');
-    if (wb) { e.stopPropagation(); return openWeeklyPopup(wb.dataset.date); }
+    if (wb) { e.stopPropagation(); return openDayPopup(wb.dataset.date, 'w'); }
+    const more = e.target.closest('.more');
+    if (more) { e.stopPropagation(); return openDayPopup(more.dataset.date, 'm'); }
     const pill = e.target.closest('.pill');
     if (pill) return openSheet(pill.closest('.mcell').dataset.date, pill.dataset.id, 'm');
     const cell = e.target.closest('.mcell');
@@ -1881,14 +1948,14 @@ function wire() {
   $('#wp-add').onclick = () => {
     const ds = $('#wpop').dataset.date;
     closeWeeklyPopup();
-    openSheet(ds, null, 'w');
+    openSheet(ds, null, popScope);
   };
   $('#wp-list').onclick = e => {
     const b = e.target.closest('.ev');
     if (!b) return;
     const ds = $('#wpop').dataset.date;
     closeWeeklyPopup();
-    openSheet(ds, b.dataset.id, 'w');
+    openSheet(ds, b.dataset.id, popScope);
   };
   $('#wpop').onclick = e => { if (e.target.id === 'wpop') closeWeeklyPopup(); };
 
