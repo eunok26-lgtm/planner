@@ -170,6 +170,12 @@ button { cursor: pointer; border: none; background: none; }
 .mcell .dn { flex: 0 0 auto; }
 .mcell .dn { font-size: 14px; font-weight: 800; line-height: 1.1; }
 
+/* 좌우로 밀어 달을 넘길 때의 짧은 미끄러짐 */
+@keyframes slideL { from { transform: translateX(26px); opacity: .45; } to { transform: none; opacity: 1; } }
+@keyframes slideR { from { transform: translateX(-26px); opacity: .45; } to { transform: none; opacity: 1; } }
+.month-grid.slide-l { animation: slideL .18s ease-out; }
+.month-grid.slide-r { animation: slideR .18s ease-out; }
+
 /* W 버튼 — 그 날 위클리에 적은 일정을 팝업으로 열어 봅니다 */
 .wbtn {
   font-size: 8px; font-weight: 800; line-height: 1; letter-spacing: 0;

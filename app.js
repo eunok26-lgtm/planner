@@ -2004,6 +2004,33 @@ function wire() {
     setTimeout(() => { dragBlockClick = false; }, 350);
   });
 
+  /* 월간 — 좌우로 밀어 이전/다음 달로 */
+  let msw = null;
+  const mgrid = $('#month-grid');
+  mgrid.addEventListener('pointerdown', e => {
+    if (state.view !== 'month') return;
+    if (e.pointerType === 'mouse') return;                 // 마우스는 제외 (클릭하다 달이 넘어가지 않게)
+    if (e.target.closest('.pill, .more, .wbtn')) return;   // 일정·버튼 위에서는 기존 동작 우선
+    msw = { x: e.clientX, y: e.clientY, t: Date.now() };
+  });
+  // 손을 달력 밖(탭바·상단바 위)에서 떼도 잡히도록 화면 전체에서 듣습니다
+  window.addEventListener('pointerup', e => {
+    if (!msw) return;
+    const dx = e.clientX - msw.x, dy = e.clientY - msw.y, dt = Date.now() - msw.t;
+    msw = null;
+    // 가로로 충분히, 세로 흔들림은 적게, 너무 느리지 않게 — 셋 다 맞아야 달을 넘깁니다
+    if (Math.abs(dx) < 60 || Math.abs(dy) > 45 || Math.abs(dy) > Math.abs(dx) || dt > 800) return;
+
+    dragBlockClick = true;                                  // 밀고 난 뒤 새 일정 창이 열리지 않게
+    setTimeout(() => { dragBlockClick = false; }, 350);
+
+    mgrid.classList.remove('slide-l', 'slide-r');
+    void mgrid.offsetWidth;                                 // 같은 방향으로 연속해서 밀어도 다시 동작하도록
+    mgrid.classList.add(dx < 0 ? 'slide-l' : 'slide-r');
+    shift(dx < 0 ? 1 : -1);
+  });
+  window.addEventListener('pointercancel', () => { msw = null; });
+
   /* 끌어서 순서 바꾸기 */
   enableDragSort($('#month-grid'), {
     scope: 'm1',                                       // 여러 날 막대는 끌지 않습니다
