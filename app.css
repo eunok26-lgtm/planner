@@ -260,6 +260,10 @@ button { cursor: pointer; border: none; background: none; }
 /* 아직 분류되지 않은 일정 — 속이 빈 회색 점으로 구분합니다 */
 .wdot.cnone { background: none; border: 1.5px solid var(--mute); }
 
+/* 맨 위 고정 표시 */
+.wpin { font-size: 10px; line-height: 1; flex: 0 0 auto; }
+.wline.pinned .wx { font-weight: 700; }
+
 /* 분류 범례 */
 .catlegend { display: flex; flex-wrap: wrap; gap: 10px; padding: 8px 12px 4px; }
 .catchip { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--ink-2); }
@@ -367,8 +371,10 @@ button { cursor: pointer; border: none; background: none; }
 .task .del { color: var(--mute); font-size: 17px; padding: 0 2px; }
 
 /* ---------------- 쇼핑 ---------------- */
-.shop-add { display: flex; gap: 6px; margin-bottom: 14px; }
-.shop-add input { flex: 1; min-width: 0; }
+.shop-add { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
+.shop-add input  { flex: 1 1 140px; min-width: 0; }
+.shop-add select { flex: 0 1 auto;  min-width: 0; max-width: 100%; }
+.shop-add .mini.solid { flex: 0 0 auto; }
 .shop-add input, .shop-add select {
   padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--card);
 }
@@ -516,6 +522,20 @@ body.is-dragging { user-select: none; -webkit-user-select: none; cursor: grabbin
   .wbtn { font-size: 7px; padding: 1px 2px; }
   .wbtn sup { font-size: 6px; }
   .tab { padding: 8px 0 7px; font-size: 11px; }
+
+  /* 어떤 경우에도 화면 밖으로 밀려나지 않게 */
+  #main { overflow-x: hidden; }
+  .pane { padding: 12px 12px 24px; }
+
+  /* 아이폰은 입력칸 글씨가 16px 보다 작으면 누를 때 화면을 확대해 버립니다.
+     그 순간 폭이 넘쳐 가로로 스크롤되므로 16px 로 맞춥니다. */
+  input, select, textarea { font-size: 16px; }
+
+  /* 쇼핑 입력줄 — 좁은 화면에서는 두 줄로 나눠 배치합니다
+     (분류 이름이 길어져도 넘치지 않습니다) */
+  .shop-add input  { flex: 1 1 100%; }
+  .shop-add select { flex: 1 1 0; }
+  .shop-add .mini.solid { flex: 0 0 auto; padding: 9px 16px; }
 
   /* ---- 위클리 : 폰에서만 세로 배치로 바뀝니다 ---- */
   .wmode { display: flex; }

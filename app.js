@@ -231,7 +231,8 @@ function normalizeEvent(g, calId) {
                  seriesId: g.recurringEventId || null,
                  color: GCAL_TO_COLOR[g.colorId] || '',
                  cal: calId || CAL_M,
-                 cat: calId ? catNameOf(calId) : '' };
+                 cat: calId ? catNameOf(calId) : '',
+                 pin: g.extendedProperties?.private?.plannerPin === '1' };
   if (allDay) {
     const from = parseYmd(g.start.date);
     const to   = parseYmd(g.end.date);              // end 는 제외 경계
@@ -272,7 +273,9 @@ function indexEvents(list, fromKey, toKey) {
       store.events.get(ev.date).push(ev);
     }
   }
-  for (const arr of store.events.values()) arr.sort((a, b) => orderKey(a) - orderKey(b));
+  // 맨 위 고정이 먼저, 그다음 정해진 순서대로
+  for (const arr of store.events.values())
+    arr.sort((a, b) => (b.pin ? 1 : 0) - (a.pin ? 1 : 0) || orderKey(a) - orderKey(b));
 }
 
 /** 한 달치(앞뒤 여유 7일 포함) 일정을 불러옵니다. */
@@ -398,18 +401,27 @@ function eventBody(f) {
   return body;
 }
 
+/** 구글에 함께 저장하는 부가정보. 한 번에 다 써야 기존 값이 지워지지 않습니다. */
+function privateProps(ev, f) {
+  const p = { plannerSrc: (f.src === 'w' ? 'w' : 'm') };
+  if (ev && ev.order != null) p.plannerOrder = String(ev.order);
+  if (f.pin) p.plannerPin = '1';
+  return p;
+}
+
 async function createEvent(f) {
   const body = eventBody(f);
-  body.extendedProperties = { private: { plannerSrc: f.src === 'w' ? 'w' : 'm' } };
+  body.extendedProperties = { private: privateProps(null, f) };
   const rec = buildRecurrence(f);
   if (rec) body.recurrence = rec;
   await ensureCalendars();
   await api(calBase(f.cal || calOf(f.src)), { method: 'POST', body: JSON.stringify(body) });
   await refreshAround(parseYmd(f.date));
 }
-async function updateEvent(id, f, cal) {
+async function updateEvent(id, f, cal, ev) {
   // PATCH 는 건드리지 않은 필드(참석자·알림 등)를 그대로 보존합니다
   const body = eventBody(f);
+  body.extendedProperties = { private: privateProps(ev, f) };
   if (f.repEditable) {
     const rec = buildRecurrence(f);
     body.recurrence = rec || [];        // 빈 배열 = 반복 해제
@@ -460,7 +472,8 @@ async function updateSeriesAfter(seriesId, fromDate, f, ev) {
 
   const body = eventBody(f);
   body.recurrence = [newRule];
-  body.extendedProperties = { private: { plannerSrc: ev.src === 'w' ? 'w' : 'm' } };
+  // 반복을 나눌 때도 출처·고정 표시를 새 반복에 그대로 물려줍니다
+  body.extendedProperties = { private: privateProps(ev, { ...f, src: ev.src }) };
   await api(calBase(cal), { method: 'POST', body: JSON.stringify(body) });
 
   store.loadedMonths.clear();
@@ -564,12 +577,13 @@ async function deleteEvent(id, dateStr, cal) {
 
 /** 끌어서 놓은 위치를 구글에 저장합니다.
     앞뒤 항목의 정렬값 사이 중간값을 새 순서로 써서, 한 번에 한 건만 고치면 됩니다. */
-async function reorderEvent(id, fromDate, toDate, index, scope = 'm') {
+async function reorderEvent(id, fromDate, toDate, index, scope = 'm', pinned = false) {
   // 분류마다 캘린더가 다르므로 그 일정이 실제로 들어있는 캘린더를 씁니다
   const moving0 = eventsOn(fromDate).find(e => e.id === id);
   const cal = (moving0 && moving0.cal) || calOf(scope === 'w' ? 'w' : 'm');
   // 놓은 위치(index)는 그 화면에 보이는 것들 기준이므로, 이웃도 같은 범위에서 찾습니다
-  const rest = eventsFor(toDate, scope).filter(e => e.id !== id);
+  const rest = eventsFor(toDate, scope)
+                 .filter(e => e.id !== id && !!e.pin === !!pinned);
   const prev = index > 0            ? orderKey(rest[index - 1]) : null;
   const next = index < rest.length  ? orderKey(rest[index])     : null;
 
@@ -582,14 +596,15 @@ async function reorderEvent(id, fromDate, toDate, index, scope = 'm') {
   // 중간값을 만들 자리가 없을 만큼 촘촘해지면 그 날짜 전체를 다시 번호 매깁니다
   if (prev != null && next != null && Math.abs(next - prev) < 2) {
     await renumberDay(toDate, scope);
-    return reorderEvent(id, fromDate, toDate, index, scope);
+    return reorderEvent(id, fromDate, toDate, index, scope, pinned);
   }
 
   // private 맵은 통째로 교체되므로 출처 표시도 함께 다시 써 줍니다
   const moving = eventsOn(fromDate).find(e => e.id === id) || {};
   const body = { extendedProperties: { private: {
     plannerOrder: String(Math.round(val)),
-    plannerSrc: moving.src === 'w' ? 'w' : 'm'
+    plannerSrc: moving.src === 'w' ? 'w' : 'm',
+    ...(moving.pin ? { plannerPin: '1' } : {})
   } } };
 
   // 다른 요일로 옮긴 경우 날짜도 함께 바꿉니다
@@ -615,7 +630,8 @@ async function renumberDay(dateStr, scope = 'm') {
       method: 'PATCH',
       body: JSON.stringify({ extendedProperties: { private: {
         plannerOrder: String(base + i * 60000),
-        plannerSrc: list[i].src === 'w' ? 'w' : 'm'
+        plannerSrc: list[i].src === 'w' ? 'w' : 'm',
+        ...(list[i].pin ? { plannerPin: '1' } : {})
       } } })
     });
   }
@@ -960,8 +976,9 @@ function renderWeek() {
     for (let k = 0; k < Math.max(LINES, evs.length); k++) {
       const e = evs[k];
       lines += e
-        ? `<button class="wline${colorCls(e)}" data-id="${e.id}" data-date="${ds}">
+        ? `<button class="wline${colorCls(e)}${e.pin ? ' pinned' : ''}" data-id="${e.id}" data-date="${ds}">
              <span class="grip" aria-hidden="true"></span>
+             ${e.pin ? '<span class="wpin" title="맨 위 고정">📌</span>' : ''}
              ${WCATS.length > 1 ? `<span class="wdot ${catCls(catIndexOf(e.cal))}"
                     title="${esc(e.cat || '분류 없음 — ⋯ 메뉴에서 모으기')}"></span>` : ''}
              ${e.time ? `<span class="wt">${e.time}</span>` : ''}
@@ -1110,6 +1127,9 @@ function openSheet(dateStr, id, src) {
     $('#ev-cat').disabled = !!(ev && ev.seriesId);
   }
 
+  $('#ev-pin-wrap').hidden = !isW;          // 고정은 위클리에서만
+  $('#ev-pin').checked = !!(ev && ev.pin);
+
   setColorPick(ev ? ev.color : '');
   $('#ev-allday').checked = ev ? ev.allDay : true;
   $('#ev-time').value  = ev && ev.time ? ev.time : '09:00';
@@ -1205,6 +1225,7 @@ async function saveSheet() {
     src: sheetSrc,
     spanDays: 1,
     color: $('#ev-color .sw.on')?.dataset.c || '',
+    pin: (sheetSrc === 'w') && $('#ev-pin').checked,
     cal: (sheetSrc === 'w' && !$('#ev-cat').disabled
           && $('#ev-cat').value !== '__none__') ? $('#ev-cat').value : null,
     rep:        $('#ev-rep').value,
@@ -1246,10 +1267,10 @@ async function saveSheet() {
     } else if (!inSeries) {
       // 분류를 바꿨으면 먼저 그 캘린더로 옮기고 나서 내용을 고칩니다
       if (f.cal && ev.cal && f.cal !== ev.cal) await moveEventToCal(target.id, ev.cal, f.cal);
-      await updateEvent(target.id, f, f.cal || ev.cal);
+      await updateEvent(target.id, f, f.cal || ev.cal, ev);
       store.loadedMonths.clear();
     }
-    else if (scope === 'one') await updateEvent(target.id, f, ev.cal);
+    else if (scope === 'one') await updateEvent(target.id, f, ev.cal, ev);
     else if (scope === 'after') await updateSeriesAfter(ev.seriesId, wasDate, f, ev);
     else                        await updateSeriesAll(ev.seriesId, f, ev.cal);
 
@@ -1634,9 +1655,13 @@ function enableDragSort(root, opt) {
 
     const listEl = el.closest(opt.list);
     const toDate = opt.dateOf(listEl);
-    const index  = [...listEl.querySelectorAll(opt.item)].filter(x => x.dataset.id).indexOf(el);
+    // 고정된 것은 항상 위에 모이므로, 같은 무리 안에서의 자리만 셉니다
+    const pinned = el.classList.contains('pinned');
+    const same = [...listEl.querySelectorAll(opt.item)]
+                   .filter(x => x.dataset.id && x.classList.contains('pinned') === pinned);
+    const index = same.indexOf(el);
 
-    guard(() => reorderEvent(id, fromDate, toDate, index, opt.scope), '순서 저장 중…')
+    guard(() => reorderEvent(id, fromDate, toDate, index, opt.scope, pinned), '순서 저장 중…')
       .then(() => renderAll());
   });
 
