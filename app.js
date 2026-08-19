@@ -779,7 +779,7 @@ function fitMonthRows(weekRows) {
     const tight = parseFloat(getComputedStyle(grid).getPropertyValue('--headh-tight')) || 18;
     n = Math.floor((cell - tight) / rowh);
   }
-  return Math.max(1, Math.min(6, n));
+  return Math.max(1, Math.min(12, n));   // 칸이 크면 더 많이 보여줍니다
 }
 
 /** 한 주(7칸) 안에서 여러 날짜에 걸친 일정에 줄 번호를 배정합니다.
@@ -864,11 +864,9 @@ function renderMonth(pass = 0) {
 
     // "+N" 표시도 한 줄을 차지하므로, 넘치는 날이 있으면 한 줄을 미리 비워 둡니다.
     // 막대 높이가 어긋나지 않도록 이 판단은 날짜별이 아니라 주 단위로 합니다.
-    const need = ds => lay.shownLanes + eventsFor(ds, 'm1').length + lay.hiddenAt(ds);
-    // 줄이 한 줄뿐인 아주 낮은 화면에서는 "+N" 대신 일정을 보여주는 편이 낫습니다
-    const reserve = MONTH_ROWS > 1 && days.some(d => need(ymd(d)) > MONTH_ROWS);
-    const cap = reserve ? MONTH_ROWS - 1 : MONTH_ROWS;
-    const laneShow = Math.min(lay.shownLanes, cap);
+    // 여러 날 막대가 차지하는 줄 수는 주 전체가 같아야 막대가 어긋나지 않습니다.
+    // 반면 "+N" 자리는 실제로 넘치는 날에만 빼서, 여유가 있는 날은 전부 보여줍니다.
+    const laneShow = Math.min(lay.shownLanes, MONTH_ROWS);
 
     days.forEach((d, i) => {
       const ds = ymd(d);
@@ -894,18 +892,23 @@ function renderMonth(pass = 0) {
                        title="${esc(e.text)}">${showText ? esc(e.text) : ''}</span>`;
       }
 
-      // ② 하루짜리 일정 — 남은 줄만큼
+      // ② 하루짜리 일정 — 남는 줄을 최대한 씁니다
       const singles = eventsFor(ds, 'm1');
-      const room = Math.max(0, cap - laneShow);
-      const shown = singles.slice(0, room);
+      const room = Math.max(0, MONTH_ROWS - laneShow);           // 이 칸에서 쓸 수 있는 줄
+      const extra = lay.hiddenAt(ds) + Math.max(0, lay.shownLanes - laneShow);  // 못 그린 막대
+
+      let shown, hidden;
+      if (extra === 0 && singles.length <= room) {
+        shown = singles; hidden = 0;                             // 다 들어가면 "+N" 없이 전부
+      } else {
+        const k = Math.max(0, room - 1);                         // 한 줄은 "+N" 몫
+        shown = singles.slice(0, k);
+        hidden = (singles.length - k) + extra;
+      }
       shown.forEach(e => {
         rows += `<span class="pill ${e.allDay ? '' : 'timed'}${colorCls(e)}" data-id="${e.id}"
                        ${e.time ? `data-t="${e.time}"` : ''}>${esc(e.text)}</span>`;
       });
-
-      const hidden = (singles.length - shown.length)
-                   + lay.hiddenAt(ds)
-                   + Math.max(0, lay.shownLanes - laneShow);
       const wbtn = weekly.length
         ? `<button class="wbtn" data-date="${ds}" title="위클리에 적은 일정 ${weekly.length}건">W${
             weekly.length > 1 ? `<sup>${weekly.length}</sup>` : ''}</button>`
@@ -915,7 +918,7 @@ function renderMonth(pass = 0) {
                           ${sameDay(d, today) ? 'is-today' : ''}" data-date="${ds}">
           <div class="dhead"><span class="dn">${d.getDate()}</span>${wbtn}</div>
           <div class="dt">${esc(label)}</div>
-          <div class="evs">${rows}${(reserve && hidden > 0) ? `<span class="more">+${hidden}</span>` : ''}</div>
+          <div class="evs">${rows}${hidden > 0 ? `<span class="more">+${hidden}</span>` : ''}</div>
         </div>`;
     });
   }
