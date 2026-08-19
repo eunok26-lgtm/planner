@@ -488,6 +488,14 @@ async function updateSeriesAll(seriesId, f, cal) {
   const body = { summary: f.text, description: f.note || '' };
   body.colorId = EV_COLORS[f.color] ? EV_COLORS[f.color].gcal : null;
 
+  // 며칠짜리인지(기간)는 전체에 적용합니다.
+  // 시작 날짜만은 건드리지 않습니다 — 반복 시작일이 통째로 밀려 버리기 때문입니다.
+  if (f.allDay && master.start?.date) {
+    const s = master.start.date;
+    body.start = { date: s };
+    body.end   = { date: ymd(addDays(parseYmd(s), Math.max(1, f.spanDays || 1))) };
+  }
+
   if (!f.allDay && master.start?.dateTime) {
     const [h, m] = (f.time || '09:00').split(':').map(Number);
     const s = new Date(master.start.dateTime);
@@ -726,11 +734,11 @@ function setSync(text, cls = '') {
   el.className = 'sync ' + cls;
 }
 let toastTimer;
-function toast(msg, ms = 2200) {
+function toast(msg) {
   const t = $('#toast');
   t.textContent = msg; t.hidden = false;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { t.hidden = true; }, ms);
+  toastTimer = setTimeout(() => { t.hidden = true; }, 2200);
 }
 
 async function guard(fn, busyMsg = '동기화 중…') {
@@ -977,8 +985,10 @@ function renderWeek() {
       const e = evs[k];
       lines += e
         ? `<button class="wline${colorCls(e)}${e.pin ? ' pinned' : ''}" data-id="${e.id}" data-date="${ds}">
-             <span class="grip" aria-hidden="true"></span>
-             ${e.pin ? '<span class="wpin" title="맨 위 고정">📌</span>' : ''}
+             ${e.pin
+               // 고정된 일정은 자리가 정해져 있으니 끌기 손잡이 대신 고정 표시만 둡니다
+               ? '<span class="wpin" title="맨 위 고정">📌</span>'
+               : '<span class="grip" aria-hidden="true"></span>'}
              ${WCATS.length > 1 ? `<span class="wdot ${catCls(catIndexOf(e.cal))}"
                     title="${esc(e.cat || '분류 없음 — ⋯ 메뉴에서 모으기')}"></span>` : ''}
              ${e.time ? `<span class="wt">${e.time}</span>` : ''}
@@ -1109,7 +1119,7 @@ function openSheet(dateStr, id, src) {
   // 여러 날 일정은 어느 칸을 눌렀든 시작일과 종료일을 함께 보여줍니다
   $('#ev-date').value    = ev ? ev.sd : dateStr;
   $('#ev-enddate').value = ev ? ev.ed : dateStr;
-  $('#ev-note').value  = ev ? ev.note : '';
+  editNote = ev ? (ev.note || '') : '';
   // 분류 — 위클리 일정에만 씁니다
   const isW = (sheetSrc === 'w');
   $('#ev-cat-wrap').hidden = !isW;
@@ -1135,19 +1145,33 @@ function openSheet(dateStr, id, src) {
   $('#ev-time').value  = ev && ev.time ? ev.time : '09:00';
   syncDateFields();
 
-  // 반복 : 새 일정과 반복이 아닌 일정은 설정 가능, 반복 중 하나면 잠급니다
+  // 반복 : 새 일정과 반복이 아닌 일정은 설정 가능,
+  //        반복 중 하나면 규칙을 고칠 수 없으므로 '무슨 규칙인지' 를 보여줍니다.
   const inSeries = !!(ev && ev.seriesId);
-  $('#ev-rep').value = '';
   $('#ev-repend').value = 'none';
   $('#ev-repcount').value = 10;
   $('#ev-repuntil').value = '';
   $('#ev-rep').disabled = inSeries;
   $('#rep-note').hidden = !inSeries;
-  if (inSeries) $('#rep-note').textContent =
-    '반복되는 일정입니다. 저장할 때 어디까지 적용할지 고를 수 있습니다.';
+
+  $('#ev-until-wrap').hidden = !inSeries;
+  $('#ev-seriesuntil').value = '';
+  seriesUntil0 = '';
+
+  if (inSeries) {
+    // 회차 정보에는 반복 규칙이 들어있지 않아, 원본을 읽어와 사람이 읽는 문장으로 보여줍니다
+    $('#ev-rep').innerHTML = '<option>반복 규칙 확인 중…</option>';
+    $('#rep-note').textContent =
+      '반복 종료일을 비워두면 계속 반복합니다. 종료일은 반복 전체에 적용됩니다. ' +
+      '반복 규칙과 분류는 여기서 바꿀 수 없습니다.';
+    showSeriesRule(ev);
+  } else {
+    $('#ev-rep').innerHTML = REP_OPTIONS;
+    $('#ev-rep').value = '';
+  }
   syncRepFields();
 
-  $('#ev-delete').hidden = !ev;
+  $('#ev-del-wrap').hidden = !ev;
   $('#ev-delete').textContent = inSeries ? '이 날짜만 삭제' : '이 일정 삭제';
   $('#ev-delete-after').hidden = !inSeries;
   $('#ev-delete-all').hidden   = !inSeries;
@@ -1174,12 +1198,69 @@ function askScope() {
 
 /** 고른 반복 종류에 따라 요일 선택·종료 조건 칸을 보여주거나 숨깁니다. */
 function syncRepFields() {
-  const rep = $('#ev-rep').value;
-  $('#rep-days').hidden = (rep !== 'WEEKLY');
-  $('#rep-end').hidden  = !rep;
+  // 반복 규칙을 못 고치는 일정(반복 중 한 회차)에서는 요일·종료조건 칸을 숨깁니다
+  const locked = $('#ev-rep').disabled;
+  const rep = locked ? '' : $('#ev-rep').value;
+  $('#rep-days').hidden = locked || (rep !== 'WEEKLY');
+  $('#rep-end').hidden  = locked || !rep;
   const mode = $('#ev-repend').value;
   $('#rep-count-wrap').hidden = (mode !== 'count');
   $('#rep-until-wrap').hidden = (mode !== 'until');
+}
+
+/* 반복 선택지 원본 — 반복 일정을 열면 잠시 규칙 문장으로 바꿔 끼우므로 보관해 둡니다 */
+let REP_OPTIONS = '';
+let seriesUntil0 = '';      // 편집창을 열 때의 반복 종료일 (바뀌었는지 비교용)
+let editNote = '';          // 편집창에 메모 칸은 없지만, 구글에 적힌 메모는 지우지 않고 그대로 둡니다
+
+/** 반복 규칙에서 종료일(UNTIL)을 'YYYY-MM-DD' 로 꺼냅니다. 없으면 빈 문자열. */
+function untilOfRule(recurrence) {
+  const rule = (recurrence || []).find(x => x.startsWith('RRULE'));
+  const m = rule && rule.match(/UNTIL=(\d{4})(\d{2})(\d{2})/);
+  return m ? `${m[1]}-${m[2]}-${m[3]}` : '';
+}
+
+/** 반복을 언제까지 할지 다시 정합니다. 빈 값이면 '계속 반복'. */
+async function setSeriesUntil(seriesId, cal, untilDate) {
+  const master = await api(`${calBase(cal || CAL_M)}/${encodeURIComponent(seriesId)}`);
+  const allDay = !!master.start?.date;
+
+  const recurrence = (master.recurrence || []).map(line => {
+    if (!line.startsWith('RRULE')) return line;
+    let r = line.replace(/;?(UNTIL|COUNT)=[^;]*/g, '');
+    if (untilDate) {
+      let until;
+      if (allDay) {
+        until = untilDate.replace(/-/g, '');                 // 종일 일정은 날짜 형식
+      } else {
+        const d = parseYmd(untilDate); d.setHours(23, 59, 59, 0);
+        until = d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+      }
+      r += ';UNTIL=' + until;
+    }
+    return r;
+  });
+
+  await api(`${calBase(cal || CAL_M)}/${encodeURIComponent(seriesId)}`,
+            { method: 'PATCH', body: JSON.stringify({ recurrence }) });
+  store.loadedMonths.clear();
+}
+
+/** 반복 일정의 원본을 읽어와 '매주 목요일 · 10회' 같은 문장으로 보여줍니다. */
+async function showSeriesRule(ev) {
+  const mine = ev.id;
+  let text = '반복 일정', until = '';
+  try {
+    const master = await api(`${calBase(ev.cal || CAL_M)}/${encodeURIComponent(ev.seriesId)}`);
+    text  = recurrenceText(master.recurrence || []);
+    until = untilOfRule(master.recurrence);
+  } catch (e) { /* 못 읽으면 기본 문구 */ }
+  // 그 사이 창을 닫았거나 다른 일정을 열었으면 건드리지 않습니다
+  if (editing && editing.id === mine && !$('#sheet').hidden) {
+    $('#ev-rep').innerHTML = `<option>${esc(text)}</option>`;
+    $('#ev-seriesuntil').value = until;
+    seriesUntil0 = until;
+  }
 }
 
 /** '하루 종일' 여부에 따라 종료일 / 시간 칸을 바꿔 보여줍니다. */
@@ -1221,7 +1302,7 @@ async function saveSheet() {
     date: $('#ev-date').value,
     time: $('#ev-time').value,
     allDay: $('#ev-allday').checked,
-    note: $('#ev-note').value.trim(),
+    note: editNote,                      // 메모는 손대지 않고 있던 값을 그대로 보냅니다
     src: sheetSrc,
     spanDays: 1,
     color: $('#ev-color .sw.on')?.dataset.c || '',
@@ -1262,6 +1343,10 @@ async function saveSheet() {
   closeSheet();
 
   await guard(async () => {
+    // 반복 종료일은 반복 전체에 걸리는 설정이라 범위 선택과 무관하게 먼저 적용합니다
+    if (inSeries && $('#ev-seriesuntil').value !== seriesUntil0) {
+      await setSeriesUntil(ev.seriesId, ev.cal, $('#ev-seriesuntil').value);
+    }
     if (!target) {
       await createEvent(f);
     } else if (!inSeries) {
@@ -1707,6 +1792,7 @@ function wire() {
   };
   $$('.tab').forEach(t => t.onclick = () => showView(t.dataset.view));
 
+  REP_OPTIONS = $('#ev-rep').innerHTML;   // 원본 선택지 보관
   buildDayPicker();
   buildColorPick();
   $('#ev-color').onclick = e => {
@@ -2001,29 +2087,10 @@ function wire() {
 /* ============================================================
    11. 시작
    ============================================================ */
-/* 아이폰은 사용자가 한 번 확대하면 그 배율을 계속 유지합니다.
-   웹페이지가 배율을 강제로 되돌리는 것은 접근성 때문에 막혀 있어서,
-   확대된 상태로 열렸을 때 한 번만 알려주는 것까지가 할 수 있는 일입니다.
-   (확대가 저절로 걸리던 원인 — 입력칸 글씨 16px 미만 — 은 이미 없앴습니다) */
-function checkZoom() {
-  const vv = window.visualViewport;
-  if (!vv || vv.scale <= 1.05) return;
-  if (sessionStorage.getItem('planner.zoomhint')) return;
-  sessionStorage.setItem('planner.zoomhint', '1');
-  toast('화면이 확대되어 있습니다 — 두 손가락으로 오므리면 맞춰집니다', 5000);
-}
-
 async function start() {
   $('#gate').hidden = true;
   $('#app').hidden = false;
   showView('month');
-  setTimeout(checkZoom, 800);
-  if (window.visualViewport) {
-    let zt;
-    window.visualViewport.addEventListener('resize', () => {
-      clearTimeout(zt); zt = setTimeout(checkZoom, 400);
-    });
-  }
 }
 
 /* 요청하는 권한이 바뀌면 예전 로그인으로는 안 되므로 다시 동의를 받습니다.

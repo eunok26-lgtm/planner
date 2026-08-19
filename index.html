@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" href="icons/icon-192.png">
-<link rel="stylesheet" href="app.css?v=35">
+<link rel="stylesheet" href="app.css?v=46">
 <style id="pagerule">@page { size: 297mm 210mm; margin: 0; }</style>
 </head>
 <body>
@@ -150,12 +150,19 @@
         <input id="ev-repuntil" type="date"></label>
     </div>
 
+    <!-- 반복 일정에서만 : 언제까지 반복할지 -->
+    <label class="fld" id="ev-until-wrap" hidden><span>반복 종료일</span>
+      <input id="ev-seriesuntil" type="date"></label>
+
     <p id="rep-note" class="fld-note" hidden></p>
 
-    <label class="fld"><span>메모</span><textarea id="ev-note" rows="2" placeholder="선택"></textarea></label>
-    <button class="btn-danger" id="ev-delete" hidden>이 일정 삭제</button>
-    <button class="btn-danger" id="ev-delete-after" hidden>이 일정 이후 모두 삭제</button>
-    <button class="btn-danger" id="ev-delete-all" hidden>반복 전체 삭제</button>
+    <div class="danger-wrap" id="ev-del-wrap" hidden>
+      <div class="danger-row">
+        <button class="btn-danger" id="ev-delete">이 일정 삭제</button>
+        <button class="btn-danger" id="ev-delete-after" hidden>이 일정 이후 모두 삭제</button>
+        <button class="btn-danger" id="ev-delete-all" hidden>반복 전체 삭제</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -258,8 +265,8 @@
 <div id="toast" class="toast" hidden></div>
 
 <script src="https://accounts.google.com/gsi/client" async defer></script>
-<script src="config.js?v=35"></script>
-<script src="korean-calendar.js?v=35"></script>
-<script src="app.js?v=35"></script>
+<script src="config.js?v=46"></script>
+<script src="korean-calendar.js?v=46"></script>
+<script src="app.js?v=46"></script>
 </body>
 </html>

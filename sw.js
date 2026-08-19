@@ -4,14 +4,14 @@
    앱이 localStorage 에 넣어둔 마지막 상태를 보여줍니다.
    ============================================================ */
 
-const CACHE = 'planner-v35';
+const CACHE = 'planner-v46';
 const SHELL = [
   './',
   './index.html',
-  './app.css?v=35',
-  './app.js?v=35',
-  './config.js?v=35',
-  './korean-calendar.js?v=35',
+  './app.css?v=46',
+  './app.js?v=46',
+  './config.js?v=46',
+  './korean-calendar.js?v=46',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png'

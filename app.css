@@ -385,8 +385,21 @@ button { cursor: pointer; border: none; background: none; }
 .mini { font-size: 12px; font-weight: 700; color: var(--accent); padding: 4px 8px; border-radius: 8px; }
 .mini.solid { background: var(--ink); color: var(--paper); padding: 7px 14px; }
 .mini.ghost { color: var(--mute); }
-.btn-danger + .btn-danger { margin-top: 8px; }
-.btn-danger { width: 100%; margin-top: 14px; padding: 11px; border-radius: 10px; color: var(--hol); font-weight: 700; background: color-mix(in srgb, var(--hol) 10%, transparent); }
+.btn-danger {
+  width: 100%; margin-top: 14px; padding: 11px; border-radius: 10px;
+  color: var(--hol); font-weight: 700;
+  background: color-mix(in srgb, var(--hol) 10%, transparent);
+}
+
+/* 삭제 버튼들을 한 줄에 나란히 — 창 높이를 줄입니다.
+   글자를 줄이고 낱말 단위로만 줄바꿈해서 버튼 안에 들어가게 합니다. */
+.danger-wrap { margin-top: 14px; }
+.danger-row { display: flex; gap: 6px; align-items: stretch; }
+.danger-row .btn-danger {
+  flex: 1 1 0; min-width: 0; width: auto; margin-top: 0;
+  padding: 8px 4px; font-size: 11px; line-height: 1.3;
+  white-space: normal; word-break: keep-all;
+}
 
 /* ---------------- 끌어서 순서 바꾸는 중 ---------------- */
 .dragging {
@@ -402,19 +415,60 @@ body.is-dragging { user-select: none; -webkit-user-select: none; cursor: grabbin
   width: 100%; max-width: 460px; background: var(--card);
   border-radius: 18px 18px 0 0; padding: 14px 16px calc(20px + var(--safe-b));
   box-shadow: 0 -8px 40px rgba(0,0,0,.2); animation: up .18s ease-out;
+  /* 내용이 많아도 화면 밖으로 잘리지 않게 — 창 안에서 스크롤됩니다 */
+  max-height: 88vh;
+  max-height: 88dvh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }
-@keyframes up { from { transform: translateY(14px); opacity: .6 } }
+/* 반복 일정 관리 창은 목록이 따로 스크롤되므로 제외 */
+.sheet-card.wide { overflow-y: hidden; }
+/* 끝 상태를 명시해야 애니메이션이 끝난 뒤 밀림이 남지 않습니다 */
+@keyframes up {
+  from { transform: translateY(14px); opacity: .6; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
 @media (min-width: 640px) {
   .sheet-back { align-items: center; }
-  .sheet-card { border-radius: 18px; padding-bottom: 20px; }
+  .sheet-card { border-radius: 18px; padding-bottom: 20px; max-height: 86vh; max-height: 86dvh; }
 }
-.sheet-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+/* 머리글(취소·제목·저장)은 스크롤해도 항상 위에 붙어 있게 */
+.sheet-head {
+  display: flex; align-items: center; justify-content: space-between;
+  position: sticky; top: 0; z-index: 2; background: var(--card);
+  margin: 0 -16px 12px; padding: 0 16px 10px;
+}
+/* 머리글 위쪽(창 안쪽 여백)으로 내용이 비쳐 보이지 않도록 같은 색으로 덮습니다 */
+.sheet-head::before {
+  content: ''; position: absolute; left: 0; right: 0; bottom: 100%;
+  height: 18px; background: var(--card);
+}
+.sheet-card.wide .sheet-head { position: static; margin: 0 0 12px; padding: 0; }
 .sheet-head strong { font-size: 15px; }
 .fld { display: block; margin-bottom: 12px; }
 .fld > span { display: block; font-size: 11px; font-weight: 800; letter-spacing: .08em; color: var(--mute); margin-bottom: 5px; }
-.fld input, .fld textarea {
+/* 잠긴 칸(반복 일정의 반복 규칙·분류)도 값이 또렷하게 보이도록.
+   기본 회색 처리는 '고장난 칸'처럼 보여서 값을 못 읽습니다. */
+.fld select:disabled, .fld input:disabled {
+  opacity: 1; -webkit-text-fill-color: var(--ink); color: var(--ink);
+  background-color: var(--line); border-color: var(--line);
+}
+.fld select:disabled { background-image: none; padding-right: 12px; }
+
+.fld input, .fld select, .fld textarea {
   width: 100%; padding: 11px 12px; border-radius: 10px;
-  border: 1px solid var(--line); background: var(--paper); resize: none;
+  border: 1px solid var(--line); background: var(--paper); color: var(--ink);
+  resize: none; appearance: none; -webkit-appearance: none;
+}
+/* 선택칸임을 알 수 있게 오른쪽에 작은 화살표 */
+.fld select {
+  background-image: linear-gradient(45deg, transparent 50%, var(--ink-2) 50%),
+                    linear-gradient(135deg, var(--ink-2) 50%, transparent 50%);
+  background-position: right 15px center, right 10px center;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 30px;
 }
 .fld-row { display: flex; gap: 10px; }
 .fld-row .fld { flex: 1; }
