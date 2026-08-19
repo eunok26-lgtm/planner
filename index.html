@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" href="icons/icon-192.png">
-<link rel="stylesheet" href="app.css?v=51">
+<link rel="stylesheet" href="app.css?v=53">
 <style id="pagerule">@page { size: 297mm 210mm; margin: 0; }</style>
 </head>
 <body>
@@ -49,7 +49,12 @@
     <!-- 월간 -->
     <section class="view" id="view-month">
       <div class="dow-head" id="month-dow"></div>
-      <div class="month-grid" id="month-grid"></div>
+      <!-- 좌우로 밀면 옆 달이 따라 들어오도록 세 장을 나란히 두고 트랙을 움직입니다 -->
+      <div class="month-track" id="month-track">
+        <div class="month-grid mg-side" id="month-prev" aria-hidden="true"></div>
+        <div class="month-grid" id="month-grid"></div>
+        <div class="month-grid mg-side" id="month-next" aria-hidden="true"></div>
+      </div>
     </section>
 
     <!-- 위클리 -->
@@ -265,8 +270,8 @@
 <div id="toast" class="toast" hidden></div>
 
 <script src="https://accounts.google.com/gsi/client" async defer></script>
-<script src="config.js?v=51"></script>
-<script src="korean-calendar.js?v=51"></script>
-<script src="app.js?v=51"></script>
+<script src="config.js?v=53"></script>
+<script src="korean-calendar.js?v=53"></script>
+<script src="app.js?v=53"></script>
 </body>
 </html>

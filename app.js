@@ -806,15 +806,14 @@ let MONTH_ROWS = 4;            // 한 칸에 보여줄 일정 줄 수 (화면 �
 
 /** 화면 높이를 재서 한 칸에 몇 줄까지 넣을 수 있는지 계산합니다.
     폰처럼 세로가 짧으면 줄 수를 줄여 월 전체가 한 화면에 들어오게 합니다. */
-function fitMonthRows(weekRows) {
+function fitMonthRows(weekRows, grid = $('#month-grid')) {
   const view = $('#view-month'), dow = $('#month-dow');
   const h = view.clientHeight - (dow.offsetHeight || 0);
   if (!h || h < 60) return MONTH_ROWS;              // 아직 화면에 없으면 이전 값 유지
-  const cs = getComputedStyle($('#month-grid'));
+  const cs = getComputedStyle(grid);
   const rowh  = parseFloat(cs.getPropertyValue('--rowh'))  || 17;
   const headh = parseFloat(cs.getPropertyValue('--headh')) || 33;
   const cell = h / weekRows;
-  const grid = $('#month-grid');
 
   // 한 줄도 못 넣을 만큼 낮은 화면(폰 가로모드 등)에서는
   // 절기·기념일 줄을 접어서 일정 한 줄이라도 들어가게 합니다.
@@ -877,30 +876,22 @@ function layoutWeek(days) {
   };
 }
 
-function renderMonth(pass = 0) {
-  const a = state.anchor;
-  $('#title').textContent = MONTH_TITLE(a);
-  $('#subtitle').textContent = '';
+/** 그 달을 그리는 데 필요한 주 수 (5주 또는 6주) */
+function weekRowsOf(a) {
+  const first = new Date(a.getFullYear(), a.getMonth(), 1);
+  const gridStart = startOfWeek(first, CFG.WEEK_START);
+  const daysInMonth = new Date(a.getFullYear(), a.getMonth() + 1, 0).getDate();
+  const lead = Math.round((first - gridStart) / 86400000);
+  return Math.ceil((lead + daysInMonth) / 7);
+}
 
-  const dowHead = $('#month-dow');
-  if (!dowHead.childElementCount) {
-    const order = CFG.WEEK_START === 1 ? [1,2,3,4,5,6,0] : [0,1,2,3,4,5,6];
-    dowHead.innerHTML = order.map(i =>
-      `<div class="${i===0?'sun':i===6?'sat':''}">${DOW_KR[i]}</div>`).join('');
-  }
-
+/** 한 달치 칸의 HTML 을 만듭니다. 화면에 붙이지는 않습니다.
+    좌우로 밀 때 옆 달을 미리 그려두는 데도 같은 함수를 씁니다. */
+function monthCellsHTML(a) {
   const first = new Date(a.getFullYear(), a.getMonth(), 1);
   const gridStart = startOfWeek(first, CFG.WEEK_START);
   const today = new Date();
-
-  // 이 달을 덮는 데 필요한 줄 수만 그립니다 (5줄이면 5줄, 6줄이면 6줄)
-  const daysInMonth = new Date(a.getFullYear(), a.getMonth() + 1, 0).getDate();
-  const lead = Math.round((first - gridStart) / 86400000);
-  const cells = Math.ceil((lead + daysInMonth) / 7) * 7;
-
-  const weekRows = cells / 7;
-  MONTH_ROWS = fitMonthRows(weekRows);
-  $('#month-grid').style.setProperty('--rows', weekRows);
+  const cells = weekRowsOf(a) * 7;
 
   let html = '';
   for (let w = 0; w * 7 < cells; w++) {
@@ -970,14 +961,73 @@ function renderMonth(pass = 0) {
         </div>`;
     });
   }
-  $('#month-grid').innerHTML = html;
+  return html;
+}
+
+function renderMonth(pass = 0) {
+  const a = state.anchor;
+  $('#title').textContent = MONTH_TITLE(a);
+  $('#subtitle').textContent = '';
+
+  const dowHead = $('#month-dow');
+  if (!dowHead.childElementCount) {
+    const order = CFG.WEEK_START === 1 ? [1,2,3,4,5,6,0] : [0,1,2,3,4,5,6];
+    dowHead.innerHTML = order.map(i =>
+      `<div class="${i===0?'sun':i===6?'sat':''}">${DOW_KR[i]}</div>`).join('');
+  }
+
+  const weekRows = weekRowsOf(a);
+  MONTH_ROWS = fitMonthRows(weekRows);
+  $('#month-grid').style.setProperty('--rows', weekRows);
+  $('#month-grid').innerHTML = monthCellsHTML(a);
 
   // 그린 뒤 실제 높이로 다시 확인합니다. 처음 계산이 어긋났으면(화면 회전·주소창
   // 접힘 등) 한 번만 다시 그려 맞춥니다. 이벤트가 안 와도 스스로 바로잡힙니다.
   if (pass === 0) {
     const again = fitMonthRows(weekRows);
-    if (again !== MONTH_ROWS) { MONTH_ROWS = again; renderMonth(1); }
+    if (again !== MONTH_ROWS) { MONTH_ROWS = again; return renderMonth(1); }
   }
+  scheduleMonthSides();
+}
+
+/** 좌우 패널은 이번 달을 먼저 보여준 뒤에 그립니다 (달 넘김이 느려지지 않게). */
+let sidesKey = '', sidesTimer = 0;
+function scheduleMonthSides() {
+  clearTimeout(sidesTimer);
+  sidesTimer = setTimeout(renderMonthSides, 40);
+}
+
+/** 좌우에 대기시켜 둘 지난달·다음달 패널.
+    미는 순간 바로 보여야 하므로 미리 그려 둡니다. */
+function renderMonthSides() {
+  clearTimeout(sidesTimer);
+  const a = state.anchor;
+  sidesKey = monthKey(a);
+  const save = MONTH_ROWS;
+  for (const [sel, delta] of [['#month-prev', -1], ['#month-next', 1]]) {
+    const el = $(sel);
+    const d = new Date(a.getFullYear(), a.getMonth() + delta, 1);
+    const wr = weekRowsOf(d);
+    MONTH_ROWS = fitMonthRows(wr, el);
+    el.style.setProperty('--rows', wr);
+    el.innerHTML = monthCellsHTML(d);
+  }
+  MONTH_ROWS = save;
+}
+
+/** 옆 달 일정을 미리 받아 둡니다. 밀었을 때 빈 칸이 보이지 않게. */
+let sidesFetched = '';
+function prefetchMonthSides() {
+  const a = state.anchor, key = monthKey(a);
+  if (sidesFetched === key) return;
+  sidesFetched = key;
+  (async () => {
+    try {
+      await loadMonth(new Date(a.getFullYear(), a.getMonth() - 1, 1));
+      await loadMonth(new Date(a.getFullYear(), a.getMonth() + 1, 1));
+      if (state.view === 'month' && monthKey(state.anchor) === key) renderMonthSides();
+    } catch (_) { sidesFetched = ''; }
+  })();
 }
 
 /* ============================================================
@@ -1714,6 +1764,7 @@ function syncCurrentView() {
         if (mon.getMonth() !== sun.getMonth()) await loadMonth(sun);
       }
       await applySeriesPins();
+      if (state.view === 'month') prefetchMonthSides();
     } else if (state.view === 'today') {
       await loadMonth(new Date());
       await loadTasks();
@@ -2004,32 +2055,70 @@ function wire() {
     setTimeout(() => { dragBlockClick = false; }, 350);
   });
 
-  /* 월간 — 좌우로 밀어 이전/다음 달로 */
-  let msw = null;
-  const mgrid = $('#month-grid');
-  mgrid.addEventListener('pointerdown', e => {
+  /* 월간 — 좌우로 밀어 이전/다음 달로.
+     지난달·다음달을 양옆에 미리 그려 두고 세 장을 담은 트랙을 손가락만큼 움직입니다.
+     그래서 미는 동안 넘어올 달이 실제로 따라 들어옵니다. */
+  const mtrack = $('#month-track');
+  let msw = null, mraf = 0;
+
+  const trackTo = (dx, anim) => {
+    mtrack.classList.toggle('anim', !!anim);
+    mtrack.style.transform = dx ? `translate3d(calc(-100% + ${dx}px), 0, 0)` : '';
+  };
+  const trackSettle = dir => {          // dir : 1 다음달 / -1 지난달 / 0 제자리
+    mtrack.classList.add('anim');
+    mtrack.style.transform = dir ? `translate3d(${dir > 0 ? -200 : 0}%, 0, 0)` : '';
+    if (!dir) { setTimeout(() => mtrack.classList.remove('anim'), 220); return; }
+    setTimeout(() => {
+      shift(dir);                       // 가운데 판을 새 달로 바꾸고
+      mtrack.classList.remove('anim');  // 곧바로 제자리로 되돌립니다 (눈에 안 띔)
+      mtrack.style.transform = '';
+    }, 200);
+  };
+
+  mtrack.addEventListener('pointerdown', e => {
     if (state.view !== 'month') return;
-    if (e.pointerType === 'mouse') return;                 // 마우스는 제외 (클릭하다 달이 넘어가지 않게)
+    if (e.pointerType === 'mouse') return;                 // 마우스는 제외 (클릭하다 넘어가지 않게)
     if (e.target.closest('.pill, .more, .wbtn')) return;   // 일정·버튼 위에서는 기존 동작 우선
-    msw = { x: e.clientX, y: e.clientY, t: Date.now() };
+    if (mtrack.classList.contains('anim')) return;         // 넘어가는 중에는 새로 잡지 않음
+    if (sidesKey !== monthKey(state.anchor)) renderMonthSides();   // 옆 판이 아직이면 지금 그립니다
+    msw = { x: e.clientX, y: e.clientY, t: Date.now(), w: mtrack.clientWidth || 320, moved: false, dx: 0 };
   });
-  // 손을 달력 밖(탭바·상단바 위)에서 떼도 잡히도록 화면 전체에서 듣습니다
-  window.addEventListener('pointerup', e => {
+
+  mtrack.addEventListener('pointermove', e => {
     if (!msw) return;
-    const dx = e.clientX - msw.x, dy = e.clientY - msw.y, dt = Date.now() - msw.t;
-    msw = null;
-    // 가로로 충분히, 세로 흔들림은 적게, 너무 느리지 않게 — 셋 다 맞아야 달을 넘깁니다
-    if (Math.abs(dx) < 60 || Math.abs(dy) > 45 || Math.abs(dy) > Math.abs(dx) || dt > 800) return;
-
-    dragBlockClick = true;                                  // 밀고 난 뒤 새 일정 창이 열리지 않게
-    setTimeout(() => { dragBlockClick = false; }, 350);
-
-    mgrid.classList.remove('slide-l', 'slide-r');
-    void mgrid.offsetWidth;                                 // 같은 방향으로 연속해서 밀어도 다시 동작하도록
-    mgrid.classList.add(dx < 0 ? 'slide-l' : 'slide-r');
-    shift(dx < 0 ? 1 : -1);
+    const dx = e.clientX - msw.x, dy = e.clientY - msw.y;
+    if (!msw.moved) {
+      if (Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) { msw = null; return; }  // 세로 → 스크롤
+      if (Math.abs(dx) < 4) return;                        // 아주 조금만 움직여도 바로 붙습니다
+      msw.moved = true;
+      mtrack.classList.remove('anim');
+    }
+    // 양 끝을 넘어가면 조금 무겁게
+    msw.dx = Math.abs(dx) <= msw.w ? dx : Math.sign(dx) * (msw.w + (Math.abs(dx) - msw.w) * 0.3);
+    if (!mraf) mraf = requestAnimationFrame(() => { mraf = 0; if (msw) trackTo(msw.dx, false); });
   });
-  window.addEventListener('pointercancel', () => { msw = null; });
+
+  const mswEnd = () => {
+    if (!msw) return;
+    const { w, t, moved, dx } = msw;
+    msw = null;
+    if (mraf) { cancelAnimationFrame(mraf); mraf = 0; }
+    if (!moved) return;
+
+    dragBlockClick = true;                                 // 밀고 난 뒤 새 일정 창이 열리지 않게
+    setTimeout(() => { dragBlockClick = false; }, 300);
+
+    const dt = Date.now() - t;
+    const far   = Math.abs(dx) > w * 0.2;                            // 화면의 20% 넘게 끌었거나
+    const flick = Math.abs(dx) > 30 && Math.abs(dx) / Math.max(dt, 1) > 0.4;  // 짧고 빠르게 튕겼으면
+    trackSettle((far || flick) ? (dx < 0 ? 1 : -1) : 0);
+  };
+  mtrack.addEventListener('pointerup', mswEnd);
+  mtrack.addEventListener('pointercancel', mswEnd);
+  mtrack.addEventListener('lostpointercapture', mswEnd);
+  // 손을 달력 밖(탭바·상단바 위)에서 떼도 마무리되도록
+  window.addEventListener('pointerup', mswEnd);
 
   /* 끌어서 순서 바꾸기 */
   enableDragSort($('#month-grid'), {
