@@ -507,6 +507,9 @@ const hasFiles = e => [...((e.dataTransfer && e.dataTransfer.types) || [])].incl
 
 function wireDiary() {
   const view = $('#view-diary');
+  // 예전 index.html 이 캐시에 남아 있으면 일기 화면이 아예 없습니다.
+  // 그때 여기서 멈추면 앱 전체가 안 뜨므로 조용히 물러납니다.
+  if (!view) return;
 
   $('#minical').onclick = e => {
     const nav = e.target.closest('[data-mc]');

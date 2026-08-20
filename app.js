@@ -1986,6 +1986,19 @@ function wire() {
   $('#mg-list').onchange = updateMgCount;
   $('#mg-del').onclick = deleteSelectedSeries;
 
+  $('#menu-ver').textContent = '버전 ' + APP_VERSION;
+
+  /* 폰에서 예전 화면이 계속 보일 때 쓰는 탈출구 */
+  $('#mi-update').onclick = async () => {
+    setSync('새로 받는 중…', 'busy');
+    try {
+      if (window.caches) for (const k of await caches.keys()) await caches.delete(k);
+      const regs = await (navigator.serviceWorker?.getRegistrations?.() || []);
+      for (const r of regs) await r.unregister();
+    } catch (e) { /* 지우지 못해도 아래에서 주소를 바꿔 다시 받습니다 */ }
+    location.replace(location.pathname + '?u=' + Date.now());
+  };
+
   $('#mi-signout').onclick = () => {
     if (accessToken) google.accounts.oauth2.revoke(accessToken, () => {});
     accessToken = null; tokenExpiry = 0;
@@ -2294,6 +2307,7 @@ async function start() {
 
 /* 요청하는 권한이 바뀌면 예전 로그인으로는 안 되므로 다시 동의를 받습니다.
    (위클리 캘린더를 만들려면 캘린더 관리 권한이 새로 필요해졌습니다) */
+const APP_VERSION = '55';
 const SCOPE_VERSION = '3';
 
 async function boot() {
@@ -2335,7 +2349,27 @@ async function boot() {
 
 boot();
 
+/* 새 버전이 올라오면 스스로 알아채고 갈아끼웁니다.
+   폰(특히 홈 화면에 넣은 아이폰)은 예전 화면을 오래 붙들고 있어서
+   이 장치가 없으면 파일을 새로 올려도 바뀐 게 안 보입니다. */
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () =>
-    navigator.serviceWorker.register('sw.js').catch(() => {}));
+  const hadController = !!navigator.serviceWorker.controller;
+  let reloading = false;
+
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController || reloading) return;   // 첫 설치 때는 새로고침하지 않습니다
+    reloading = true;
+    location.reload();
+  });
+
+  window.addEventListener('load', async () => {
+    try {
+      const reg = await navigator.serviceWorker.register('sw.js');
+      reg.update().catch(() => {});
+      // 앱으로 돌아올 때마다 새 버전이 있는지 확인합니다
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) reg.update().catch(() => {});
+      });
+    } catch (e) { /* 서비스 워커를 못 써도 앱은 그대로 돌아갑니다 */ }
+  });
 }

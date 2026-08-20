@@ -892,3 +892,6 @@ body.is-dragging { user-select: none; -webkit-user-select: none; cursor: grabbin
   /* 탭이 다섯 개라 글자를 조금 줄입니다 */
   .tab { font-size: 11px; }
 }
+
+/* 더보기 메뉴 아래 버전 표시 */
+.menu-ver { text-align: center; font-size: 11px; color: var(--mute); padding: 6px 0 2px; }
