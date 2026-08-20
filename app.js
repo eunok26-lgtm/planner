@@ -12,7 +12,10 @@ const CFG = window.APP_CONFIG;
    (예전 calendar.events 권한만으로는 캘린더를 만들 수 없습니다) */
 const SCOPES = [
   'https://www.googleapis.com/auth/calendar',
-  'https://www.googleapis.com/auth/tasks'
+  'https://www.googleapis.com/auth/tasks',
+  /* 육아일기의 글·그림·사진·문서를 드라이브에 담습니다.
+     drive.file 은 "이 앱이 만든 파일"에만 닿는 가장 좁은 권한입니다. */
+  'https://www.googleapis.com/auth/drive.file'
 ].join(' ');
 
 const CAL_API   = 'https://www.googleapis.com/calendar/v3';
@@ -1735,21 +1738,23 @@ function renderAll() {
   if (state.view === 'month') renderMonth();
   else if (state.view === 'week') renderWeek();
   else if (state.view === 'today') renderToday();
+  else if (state.view === 'diary') renderDiary();
   else renderShop();
 }
 
 function showView(v) {
   state.view = v;
   $$('.tab').forEach(t => t.classList.toggle('is-on', t.dataset.view === v));
-  ['month', 'week', 'today', 'shop'].forEach(k => { $('#view-' + k).hidden = (k !== v); });
+  ['month', 'week', 'today', 'shop', 'diary'].forEach(k => { $('#view-' + k).hidden = (k !== v); });
   $('#print-btn').hidden = (v !== 'week');
-  $('#prev').style.visibility = $('#next').style.visibility =
-    (v === 'month' || v === 'week') ? 'visible' : 'hidden';
-  $('#today-btn').style.visibility = (v === 'month' || v === 'week') ? 'visible' : 'hidden';
+  const paged = (v === 'month' || v === 'week' || v === 'diary');
+  $('#prev').style.visibility = $('#next').style.visibility = paged ? 'visible' : 'hidden';
+  $('#today-btn').style.visibility = paged ? 'visible' : 'hidden';
   renderAll();
   // 화면에 실제로 그려진 뒤 높이를 다시 재서 줄 수를 맞춥니다
   if (v === 'month') requestAnimationFrame(() => renderMonth());
   if (v === 'week') { weekScrollToday = true; renderWeek(); }
+  if (v === 'diary') { enterDiary(); return; }     // 일기는 스스로 불러옵니다
   syncCurrentView();
 }
 
@@ -1776,6 +1781,7 @@ function syncCurrentView() {
 }
 
 function shift(dir) {
+  if (state.view === 'diary') return shiftDiary(dir);
   if (state.view === 'month') {
     state.anchor = new Date(state.anchor.getFullYear(), state.anchor.getMonth() + dir, 1);
   } else if (state.view === 'week') {
@@ -1883,7 +1889,10 @@ function wire() {
   buildPrintBinding();
   $('#prev').onclick = () => shift(-1);
   $('#next').onclick = () => shift(1);
-  $('#today-btn').onclick = () => { state.anchor = new Date(); renderAll(); syncCurrentView(); };
+  $('#today-btn').onclick = () => {
+    if (state.view === 'diary') return openDiary(ymd(new Date()));
+    state.anchor = new Date(); renderAll(); syncCurrentView();
+  };
   $('#print-btn').onclick = () => {
     const mon = startOfWeek(state.anchor, CFG.WEEK_START);
     $('#pd-note').textContent =
@@ -1909,7 +1918,11 @@ function wire() {
       window.print();
     }, '인쇄 준비 중…');
   };
-  $$('.tab').forEach(t => t.onclick = () => showView(t.dataset.view));
+  $$('.tab').forEach(t => t.onclick = () => {
+    if (state.view === 'diary' && t.dataset.view !== 'diary') dSaveFlush();
+    showView(t.dataset.view);
+  });
+  wireDiary();
 
   REP_OPTIONS = $('#ev-rep').innerHTML;   // 원본 선택지 보관
   buildDayPicker();
@@ -2281,7 +2294,7 @@ async function start() {
 
 /* 요청하는 권한이 바뀌면 예전 로그인으로는 안 되므로 다시 동의를 받습니다.
    (위클리 캘린더를 만들려면 캘린더 관리 권한이 새로 필요해졌습니다) */
-const SCOPE_VERSION = '2';
+const SCOPE_VERSION = '3';
 
 async function boot() {
   if (localStorage.getItem('planner.scopev') !== SCOPE_VERSION) {

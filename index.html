@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" href="icons/icon-192.png">
-<link rel="stylesheet" href="app.css?v=53">
+<link rel="stylesheet" href="app.css?v=54">
 <style id="pagerule">@page { size: 297mm 210mm; margin: 0; }</style>
 </head>
 <body>
@@ -80,6 +80,47 @@
       <div id="todo-list" class="task-list"></div>
     </section>
 
+    <!-- 육아일기 -->
+    <section class="view" id="view-diary" hidden>
+      <div class="diary">
+        <div class="d-head">
+          <div class="minical" id="minical"></div>
+          <div class="d-when" id="d-when"></div>
+        </div>
+
+        <textarea id="d-text" placeholder="오늘 아이는 어땠나요?"></textarea>
+
+        <div class="d-sec">
+          <span class="d-lbl">그림</span>
+          <div class="dw-tools" id="dw-tools">
+            <button data-c="#3f4854" class="sw" style="--sw:#3f4854" aria-label="검정"></button>
+            <button data-c="#c4606c" class="sw" style="--sw:#c4606c" aria-label="빨강"></button>
+            <button data-c="#5b7c99" class="sw" style="--sw:#5b7c99" aria-label="파랑"></button>
+            <button data-c="#7b9a6d" class="sw" style="--sw:#7b9a6d" aria-label="초록"></button>
+            <button data-c="#c98b3a" class="sw" style="--sw:#c98b3a" aria-label="주황"></button>
+            <span class="dw-sep"></span>
+            <button data-w="2" class="wd">가늘게</button>
+            <button data-w="3" class="wd">보통</button>
+            <button data-w="6" class="wd">굵게</button>
+            <span class="dw-sep"></span>
+            <button id="dw-erase">지우개</button>
+            <button id="dw-undo">되돌리기</button>
+            <button id="dw-clear">모두 지우기</button>
+          </div>
+          <div class="dw-wrap"><canvas id="dw-canvas"></canvas></div>
+        </div>
+
+        <div class="d-sec">
+          <span class="d-lbl">사진 · 파일<button class="mini" id="d-pick">+ 고르기</button></span>
+          <input id="d-input" type="file" multiple hidden>
+          <div class="d-drop" id="d-drop">
+            사진이나 문서를 이 곳에 <b>끌어다 놓으세요</b>
+          </div>
+          <div class="d-files" id="d-files"></div>
+        </div>
+      </div>
+    </section>
+
     <!-- 쇼핑 -->
     <section class="view pane" id="view-shop" hidden>
       <div class="shop-add">
@@ -97,6 +138,7 @@
     <button class="tab" data-view="week"><span>위클리</span></button>
     <button class="tab" data-view="today"><span>오늘</span></button>
     <button class="tab" data-view="shop"><span>쇼핑</span></button>
+    <button class="tab" data-view="diary"><span>육아일기</span></button>
   </nav>
 </div>
 
@@ -264,14 +306,24 @@
   </div>
 </div>
 
+<!-- ============ 사진 크게 보기 ============ -->
+<div id="dview" class="sheet-back dark" hidden>
+  <div class="dv-card" role="dialog" aria-modal="true">
+    <div class="dv-top"><span id="dv-name"></span>
+      <button class="mini ghost" id="dv-close">닫기</button></div>
+    <img id="dv-img" alt="">
+  </div>
+</div>
+
 <!-- 인쇄 전용 출력물 — 화면에는 안 보이고 인쇄할 때만 쓰입니다 -->
 <div id="printout" aria-hidden="true"></div>
 
 <div id="toast" class="toast" hidden></div>
 
 <script src="https://accounts.google.com/gsi/client" async defer></script>
-<script src="config.js?v=53"></script>
-<script src="korean-calendar.js?v=53"></script>
-<script src="app.js?v=53"></script>
+<script src="config.js?v=54"></script>
+<script src="korean-calendar.js?v=54"></script>
+<script src="diary.js?v=54"></script>
+<script src="app.js?v=54"></script>
 </body>
 </html>

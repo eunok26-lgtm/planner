@@ -24,6 +24,9 @@ window.APP_CONFIG = {
   TASKLIST_TODO:     '할 일',
   TASKLIST_SHOPPING: '쇼핑 리스트',
 
+  /* ③-1 육아일기를 담을 구글 드라이브 폴더 이름 (없으면 자동으로 만듭니다) */
+  DIARY_FOLDER: '육아일기',
+
   /* ④ 쇼핑 리스트 분류 — 자유롭게 늘리거나 이름을 바꿔도 됩니다 */
   SHOP_CATEGORIES: ['식료품', '생필품', '기타'],
 
