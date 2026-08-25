@@ -35,6 +35,30 @@ const WCAL_DESC = `플래너 위클리 분류 ${WCAL_TAG}`;
 let WCATS = JSON.parse(localStorage.getItem('planner.wcats') || '[]');  // [{id,name}]
 let wcatsFresh = false;
 
+/* 함께 볼 캘린더 — 공유받은 가족 캘린더, 구독한 달력 등.
+   위클리 분류 캘린더는 여기 들어가지 않습니다 (그쪽은 '분류'로 따로 관리). */
+let MYCAL  = JSON.parse(localStorage.getItem('planner.mycal') || 'null')
+             || { id: 'primary', name: '내 캘린더', color: '#5b7c99', role: 'owner' };
+let EXCALS = JSON.parse(localStorage.getItem('planner.excals') || '[]');   // [{id,name,color,role}]
+let EXON   = new Set(JSON.parse(localStorage.getItem('planner.excals.on') || 'null') || ['primary']);
+
+const saveExOn = () => localStorage.setItem('planner.excals.on', JSON.stringify([...EXON]));
+
+/* 구글이 기본으로 넣어주는 휴일·생일 달력 — 처음에는 꺼 둡니다 */
+const isSystemCal = c =>
+  /holiday@group\.v\.calendar\.google\.com$/.test(c.id) ||
+  /#contacts@|#weeknum@|birthday/i.test(c.id);
+
+/** 색이 이상한 값이면 기본색으로 (구글에서 온 값을 그대로 화면에 쓰기 전에) */
+const safeColor = c => /^#[0-9a-f]{3,8}$/i.test(String(c || '')) ? c : '#5b7c99';
+
+const calInfo    = id => (id === 'primary' || id === MYCAL.id) ? MYCAL : EXCALS.find(c => c.id === id);
+/** 공유받기만 한 캘린더는 여기서 고칠 수 없습니다 */
+const isReadOnly = id => {
+  const c = calInfo(id);
+  return !!c && (c.role === 'reader' || c.role === 'freeBusyReader');
+};
+
 const isWeeklyCal = id => WCATS.some(c => c.id === id);
 const catNameOf   = id => (WCATS.find(c => c.id === id) || {}).name || '';
 /* 분류를 찾지 못하면 -1. 예전에 기본 캘린더에 넣어 아직 분류되지 않은 일정이 여기 해당합니다.
@@ -108,6 +132,28 @@ async function ensureCalendars() {
 
   WCATS = found.map(c => ({ id: c.id, name: c.summary }));
   saveCats();
+
+  /* 내 기본 캘린더와, 함께 볼 수 있는 다른 캘린더들 */
+  const prim = items.find(c => c.primary);
+  if (prim) {
+    MYCAL = { id: prim.id, name: prim.summary || '내 캘린더',
+              color: safeColor(prim.backgroundColor), role: 'owner' };
+    localStorage.setItem('planner.mycal', JSON.stringify(MYCAL));
+  }
+  const wids = new Set(WCATS.map(c => c.id));
+  EXCALS = items
+    .filter(c => !c.primary && !wids.has(c.id))
+    .map(c => ({ id: c.id, name: c.summary || c.id,
+                 color: safeColor(c.backgroundColor), role: c.accessRole || 'reader' }));
+  localStorage.setItem('planner.excals', JSON.stringify(EXCALS));
+
+  // 처음 켤 때 : 내 캘린더와 공유받은 캘린더는 켜고, 구글 기본 휴일·생일 달력은 끕니다
+  if (!localStorage.getItem('planner.excals.on')) {
+    EXON = new Set(['primary', ...items
+      .filter(c => !c.primary && !wids.has(c.id) && !isSystemCal(c)).map(c => c.id)]);
+    saveExOn();
+  }
+
   wcatsFresh = true;
   return WCATS;
 }
@@ -215,6 +261,14 @@ function loadCache() {
 const monthKey = d => d.getFullYear() + '-' + pad2(d.getMonth() + 1);
 
 /** 구글 일정 → 앱 내부 형식. 여러 날짜에 걸친 종일 일정은 날짜별로 펼칩니다. */
+/** 이 일정이 '내 기본 캘린더도, 위클리 분류도 아닌' 다른 캘린더에서 왔는지 */
+const exOf = calId =>
+  (calId && calId !== CAL_M && calId !== MYCAL.id && !isWeeklyCal(calId))
+    ? EXCALS.find(c => c.id === calId) : null;
+
+/** 다른 캘린더 일정 앞에 붙는 색 점 */
+const exDot = e => e.excolor ? `<i class="exdot" style="background:${e.excolor}"></i>` : '';
+
 function normalizeEvent(g, calId) {
   const allDay = !!g.start?.date;
   const rows = [];
@@ -235,6 +289,9 @@ function normalizeEvent(g, calId) {
                  color: GCAL_TO_COLOR[g.colorId] || '',
                  cal: calId || CAL_M,
                  cat: calId ? catNameOf(calId) : '',
+                 // 다른 캘린더에서 온 일정이면 그 캘린더의 이름·색을 함께 담습니다
+                 exname: exOf(calId) ? exOf(calId).name : '',
+                 excolor: exOf(calId) ? exOf(calId).color : '',
                  pin: g.extendedProperties?.private?.plannerPin === '1' };
   if (allDay) {
     const from = parseYmd(g.start.date);
@@ -292,8 +349,14 @@ async function loadMonth(anchor, force = false) {
     singleEvents: 'true', orderBy: 'startTime', maxResults: '2500'
   });
   await ensureCalendars();
-  const cals = [CAL_M, ...WCATS.map(c => c.id)];
-  const res = await Promise.all(cals.map(c => api(`${calBase(c)}?${qs}`)));
+  const cals = [...new Set([
+    ...(EXON.has('primary') ? [CAL_M] : []),
+    ...WCATS.map(c => c.id),                                   // 위클리 분류는 항상
+    ...EXCALS.filter(c => EXON.has(c.id)).map(c => c.id)
+  ])];
+  // 캘린더 하나가 실패해도(공유가 끊긴 경우 등) 나머지는 그대로 보이게 합니다
+  const res = await Promise.all(cals.map(c =>
+    api(`${calBase(c)}?${qs}`).catch(() => ({ items: [] }))));
   const rows = [];
   res.forEach((j, i) => (j.items || []).forEach(x => rows.push([x, cals[i]])));
   indexEvents(rows, ymd(from), ymd(addDays(to, -1)));
@@ -935,7 +998,7 @@ function monthCellsHTML(a) {
         const showText = (e.sd === ds) || (i === 0);
         if (e.color) cls.push('c-' + e.color);
         rows += `<span class="${cls.join(' ')}" data-id="${e.id}"
-                       title="${esc(e.text)}">${showText ? esc(e.text) : ''}</span>`;
+                       title="${esc(e.text)}">${showText ? exDot(e) + esc(e.text) : ''}</span>`;
       }
 
       // ② 하루짜리 일정 — 남는 줄을 최대한 씁니다
@@ -953,7 +1016,7 @@ function monthCellsHTML(a) {
       }
       shown.forEach(e => {
         rows += `<span class="pill ${e.allDay ? '' : 'timed'}${colorCls(e)}" data-id="${e.id}"
-                       ${e.time ? `data-t="${e.time}"` : ''}>${esc(e.text)}</span>`;
+                       ${e.time ? `data-t="${e.time}"` : ''}>${exDot(e)}${esc(e.text)}</span>`;
       });
       const wbtn = weekly.length
         ? `<button class="wbtn" data-date="${ds}" title="위클리에 적은 일정 ${weekly.length}건">W${
@@ -1161,8 +1224,11 @@ function renderToday() {
   $('#today-events').innerHTML = evs.length
     ? evs.map(e => {
         const w = e.src === 'w';
+        const badge = e.excolor
+          ? `<span class="src ex" style="background:${e.excolor}" title="${esc(e.exname)} 캘린더"></span>`
+          : `<span class="src ${w ? 'w' : 'm'}" title="${w ? '위클리에서 추가' : '월간에서 추가'}">${w ? 'W' : 'M'}</span>`;
         return `<button class="ev${colorCls(e)}" data-id="${e.id}" data-date="${ds}">
-         <span class="src ${w ? 'w' : 'm'}" title="${w ? '위클리에서 추가' : '월간에서 추가'}">${w ? 'W' : 'M'}</span>
+         ${badge}
          <span class="t">${e.allDay ? '종일' : e.time}</span>
          <span class="x">${esc(e.text)}</span></button>`;
       }).join('')
@@ -1287,8 +1353,20 @@ function openSheet(dateStr, id, src) {
   $('#ev-delete-after').hidden = !inSeries;
   $('#ev-delete-all').hidden   = !inSeries;
 
+  /* 공유받기만 한 캘린더의 일정은 여기서 고칠 수 없습니다 */
+  const ro = !!(ev && isReadOnly(ev.cal));
+  $('#sheet .sheet-card').classList.toggle('ro', ro);
+  $('#ev-save').hidden = ro;
+  $('#ev-ro').hidden = !ro;
+  if (ro) {
+    $('#ev-del-wrap').hidden = true;
+    $('#ev-ro').textContent =
+      ((calInfo(ev.cal) || {}).name || '공유받은') + ' 캘린더의 일정입니다. ' +
+      '여기서는 볼 수만 있고, 고치려면 구글 캘린더에서 해주세요.';
+  }
+
   $('#sheet').hidden = false;
-  setTimeout(() => $('#ev-text').focus(), 60);
+  if (!ro) setTimeout(() => $('#ev-text').focus(), 60);
 }
 function closeSheet() { $('#sheet').hidden = true; editing = null; }
 
@@ -1502,7 +1580,8 @@ function openDayPopup(dateStr, scope) {
     + (hol ? ` · ${hol}` : (term ? ` · ${term}` : ''));
 
   $('#wp-list').innerHTML = list.length
-    ? list.map(e => `<button class="ev${colorCls(e)}" data-id="${e.id}">
+    ? list.map(e => `<button class="ev${colorCls(e)}" data-id="${e.id}">${
+        e.excolor ? `<span class="src ex" style="background:${e.excolor}" title="${esc(e.exname)} 캘린더"></span>` : ''}
          <span class="t">${e.allDay ? (e.multi ? `${e.days}일` : '종일') : e.time}</span>
          <span class="x">${esc(e.text)}</span></button>`).join('')
     : `<div class="empty-note">${scope === 'm' ? '등록된' : '위클리에 적은'} 일정이 없습니다.</div>`;
@@ -1737,6 +1816,36 @@ async function deleteSelectedSeries() {
 function esc(s) {
   return String(s).replace(/[&<>"']/g, c =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+/* ============================================================
+   표시할 캘린더 고르기
+   ============================================================ */
+function renderCalList() {
+  const row = (id, name, color, role, extra) => {
+    const ro = (role === 'reader' || role === 'freeBusyReader');
+    return `<label class="calrow">
+        <input type="checkbox" data-cal="${esc(id)}" ${EXON.has(id) ? 'checked' : ''}>
+        <i class="caldot" style="background:${color}"></i>
+        <span class="calname">${esc(name)}${extra ? `<em>${extra}</em>` : ''}</span>
+        ${ro ? '<span class="calro">읽기 전용</span>' : ''}
+      </label>`;
+  };
+  $('#cs-list').innerHTML =
+    row('primary', MYCAL.name, MYCAL.color, 'owner', '(내 캘린더)') +
+    (EXCALS.length
+      ? EXCALS.map(c => row(c.id, c.name, c.color, c.role, '')).join('')
+      : '<div class="empty-note">함께 볼 다른 캘린더가 없습니다.<br>' +
+        '구글 캘린더에서 먼저 공유받아 추가해 주세요.</div>');
+}
+
+/** 켜고 끈 뒤 다시 불러옵니다 */
+function applyCalToggle() {
+  saveExOn();
+  store.loadedMonths.clear();
+  store.events.clear();
+  renderAll();
+  syncCurrentView();
 }
 
 function renderAll() {
@@ -1992,6 +2101,24 @@ function wire() {
   $('#mg-del').onclick = deleteSelectedSeries;
 
   $('#menu-ver').textContent = '버전 ' + APP_VERSION;
+
+  $('#mi-cals').onclick = () => {
+    $('#menu').hidden = true;
+    renderCalList();
+    $('#calsheet').hidden = false;
+    // 새로 공유받은 캘린더가 있을 수 있으니 목록을 다시 확인합니다
+    guard(async () => { wcatsFresh = false; await ensureCalendars(); renderCalList(); },
+          '캘린더 확인 중…');
+  };
+  $('#cs-close').onclick = () => { $('#calsheet').hidden = true; };
+  $('#calsheet').onclick = e => { if (e.target.id === 'calsheet') $('#calsheet').hidden = true; };
+  $('#cs-list').onchange = e => {
+    const cb = e.target.closest('[data-cal]');
+    if (!cb) return;
+    if (cb.checked) EXON.add(cb.dataset.cal); else EXON.delete(cb.dataset.cal);
+    applyCalToggle();
+  };
+
 
   /* 폰에서 예전 화면이 계속 보일 때 쓰는 탈출구 */
   $('#mi-update').onclick = async () => {
@@ -2312,7 +2439,7 @@ async function start() {
 
 /* 요청하는 권한이 바뀌면 예전 로그인으로는 안 되므로 다시 동의를 받습니다.
    (위클리 캘린더를 만들려면 캘린더 관리 권한이 새로 필요해졌습니다) */
-const APP_VERSION = '56';
+const APP_VERSION = '57';
 const SCOPE_VERSION = '3';
 
 async function boot() {

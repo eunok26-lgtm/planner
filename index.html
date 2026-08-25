@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" href="icons/icon-192.png">
-<link rel="stylesheet" href="app.css?v=56">
+<link rel="stylesheet" href="app.css?v=57">
 <style id="pagerule">@page { size: 297mm 210mm; margin: 0; }</style>
 </head>
 <body>
@@ -202,6 +202,7 @@
       <input id="ev-seriesuntil" type="date"></label>
 
     <p id="rep-note" class="fld-note" hidden></p>
+    <p id="ev-ro" class="ro-note" hidden></p>
 
     <div class="danger-wrap" id="ev-del-wrap" hidden>
       <div class="danger-row">
@@ -256,12 +257,27 @@
 <!-- ============ 더보기 메뉴 ============ -->
 <div id="menu" class="sheet-back" hidden>
   <div class="sheet-card" role="dialog" aria-modal="true">
+    <button class="menu-item" id="mi-cals">표시할 캘린더</button>
     <button class="menu-item" id="mi-repeat">반복 일정 관리</button>
     <button class="menu-item" id="mi-migrate">예전 위클리 일정 옮기기</button>
     <button class="menu-item" id="mi-update">최신 버전으로 새로 고침</button>
     <button class="menu-item" id="mi-signout">로그아웃</button>
     <div class="menu-ver" id="menu-ver"></div>
     <button class="menu-item mute" id="mi-close">닫기</button>
+  </div>
+</div>
+
+<!-- ============ 표시할 캘린더 ============ -->
+<div id="calsheet" class="sheet-back" hidden>
+  <div class="sheet-card" role="dialog" aria-modal="true">
+    <div class="sheet-head">
+      <button class="mini ghost" id="cs-close">닫기</button>
+      <strong>표시할 캘린더</strong>
+      <span style="width:44px"></span>
+    </div>
+    <p class="fld-note">체크한 캘린더의 일정이 <b>월간</b>과 <b>오늘</b> 화면에 함께 나옵니다.
+      위클리 분류는 여기에 나오지 않고 일정 편집 창의 <b>분류</b>에서 관리합니다.</p>
+    <div id="cs-list" class="cal-list"></div>
   </div>
 </div>
 
@@ -323,9 +339,9 @@
 <div id="toast" class="toast" hidden></div>
 
 <script src="https://accounts.google.com/gsi/client" async defer></script>
-<script src="config.js?v=56"></script>
-<script src="korean-calendar.js?v=56"></script>
-<script src="diary.js?v=56"></script>
-<script src="app.js?v=56"></script>
+<script src="config.js?v=57"></script>
+<script src="korean-calendar.js?v=57"></script>
+<script src="diary.js?v=57"></script>
+<script src="app.js?v=57"></script>
 </body>
 </html>
