@@ -499,14 +499,50 @@ async function removeDiaryFile(id) {
   }, '지우는 중…');
 }
 
+/* ---------- 사진 크게 보기 (여러 장 넘겨보기) ---------- */
+
+let dvList = [], dvIdx = 0;
+
+const isImage = f => String(f.mime || '').startsWith('image/');
+
+/** 지금 사진을 화면에 띄우고, 앞뒤 사진은 미리 받아둡니다. */
+async function dvShow() {
+  const f = dvList[dvIdx];
+  if (!f) return;
+  const many = dvList.length > 1;
+  $('#dv-name').textContent = f.name;
+  $('#dv-count').textContent = many ? (dvIdx + 1) + ' / ' + dvList.length : '';
+  $('#dv-prev').hidden = $('#dv-next').hidden = !many;
+  $('#dv-img').removeAttribute('src');
+
+  const want = f.id;                       // 받는 사이 다른 사진으로 넘어갔으면 버립니다
+  try {
+    const url = await driveBlobUrl(f.id);
+    if (dvList[dvIdx] && dvList[dvIdx].id === want) $('#dv-img').src = url;
+  } catch (_) { toast('사진을 불러오지 못했습니다'); }
+
+  // 옆 사진은 미리 받아둬서 넘길 때 기다리지 않게 합니다
+  if (many) for (const d of [1, -1]) {
+    const n = dvList[(dvIdx + d + dvList.length) % dvList.length];
+    if (n) driveBlobUrl(n.id).catch(() => {});
+  }
+}
+
+/** 앞뒤로 넘깁니다. 끝에서는 반대쪽 끝으로 이어집니다. */
+function dvGo(step) {
+  if (dvList.length < 2) return;
+  dvIdx = (dvIdx + step + dvList.length) % dvList.length;
+  dvShow();
+}
+
 /** 사진은 크게 보고, 문서는 내려받습니다. */
 async function openAttachment(f) {
-  if (String(f.mime || '').startsWith('image/')) {
+  if (isImage(f)) {
+    // 그 날 첨부한 사진 전부를 목록으로 삼아, 누른 사진부터 보여줍니다
+    dvList = ((dEntry && dEntry.files) || []).filter(isImage);
+    dvIdx = Math.max(0, dvList.findIndex(v => v.id === f.id));
     $('#dview').hidden = false;
-    $('#dv-img').removeAttribute('src');
-    $('#dv-name').textContent = f.name;
-    try { $('#dv-img').src = await driveBlobUrl(f.id); }
-    catch (_) { toast('사진을 불러오지 못했습니다'); }
+    dvShow();
     return;
   }
   try {
@@ -584,8 +620,32 @@ function wireDiary() {
     if (fs.length) { e.preventDefault(); addDiaryFiles(fs); }
   });
 
-  $('#dv-close').onclick = () => { $('#dview').hidden = true; };
-  $('#dview').onclick = e => { if (e.target.id === 'dview') $('#dview').hidden = true; };
+  /* 사진 넘겨보기 — 화살표 · 키보드 · 손으로 밀기 */
+  const dvClose = () => { $('#dview').hidden = true; dvList = []; };
+  $('#dv-close').onclick = dvClose;
+  $('#dview').onclick = e => { if (e.target.id === 'dview') dvClose(); };
+  $('#dv-prev').onclick = () => dvGo(-1);
+  $('#dv-next').onclick = () => dvGo(1);
+
+  document.addEventListener('keydown', e => {
+    if ($('#dview').hidden) return;
+    if (e.key === 'ArrowLeft')  { e.preventDefault(); dvGo(-1); }
+    else if (e.key === 'ArrowRight') { e.preventDefault(); dvGo(1); }
+    else if (e.key === 'Escape') dvClose();
+  });
+
+  let dvSw = null;
+  $('#dv-stage').addEventListener('pointerdown', e => {
+    if (e.pointerType === 'mouse') return;
+    dvSw = { x: e.clientX, y: e.clientY };
+  });
+  $('#dv-stage').addEventListener('pointerup', e => {
+    if (!dvSw) return;
+    const dx = e.clientX - dvSw.x, dy = e.clientY - dvSw.y;
+    dvSw = null;
+    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) dvGo(dx < 0 ? 1 : -1);
+  });
+  $('#dv-stage').addEventListener('pointercancel', () => { dvSw = null; });
 
   wireDraw();
   window.addEventListener('resize', () => { if (state.view === 'diary') dwSize(); });

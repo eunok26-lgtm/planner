@@ -882,6 +882,28 @@ body.is-dragging { user-select: none; -webkit-user-select: none; cursor: grabbin
 .dv-top .mini { background: rgba(255,255,255,.16); color: #fff; }
 #dv-img { max-width: 100%; max-height: 84dvh; object-fit: contain; border-radius: 10px; background: #000; }
 
+/* 여러 장 넘겨보기 */
+.dv-count { flex: 0 0 auto; font-size: 12px; color: rgba(255,255,255,.72);
+            font-variant-numeric: tabular-nums; margin-left: auto; }
+/* 사진을 받는 중이거나 못 불러왔을 때도 화살표가 제자리에 있도록
+   무대의 폭·최소 높이를 사진과 무관하게 잡아둡니다 */
+.dv-stage { position: relative; display: flex; align-items: center; justify-content: center;
+            width: 100%; min-height: 140px; touch-action: pan-y; }
+.dv-nav {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  width: 46px; height: 46px; border-radius: 50%;
+  background: rgba(20,22,26,.55); color: #fff; font-size: 30px; line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+  backdrop-filter: blur(2px);
+}
+.dv-nav:hover { background: rgba(20,22,26,.8); }
+.dv-nav:active { transform: translateY(-50%) scale(.94); }
+.dv-nav.prev { left: 8px; padding-right: 3px; }
+.dv-nav.next { right: 8px; padding-left: 3px; }
+@media (max-width: 600px) {
+  .dv-nav { width: 38px; height: 38px; font-size: 25px; }
+}
+
 @media (max-width: 600px) {
   .diary { padding: 10px 12px 24px; }
   .d-head { gap: 10px; }

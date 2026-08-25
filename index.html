@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" href="icons/icon-192.png">
-<link rel="stylesheet" href="app.css?v=59">
+<link rel="stylesheet" href="app.css?v=60">
 <style id="pagerule">@page { size: 297mm 210mm; margin: 0; }</style>
 </head>
 <body>
@@ -341,9 +341,16 @@
 <!-- ============ 사진 크게 보기 ============ -->
 <div id="dview" class="sheet-back dark" hidden>
   <div class="dv-card" role="dialog" aria-modal="true">
-    <div class="dv-top"><span id="dv-name"></span>
-      <button class="mini ghost" id="dv-close">닫기</button></div>
-    <img id="dv-img" alt="">
+    <div class="dv-top">
+      <span id="dv-name"></span>
+      <span class="dv-count" id="dv-count"></span>
+      <button class="mini ghost" id="dv-close">닫기</button>
+    </div>
+    <div class="dv-stage" id="dv-stage">
+      <button class="dv-nav prev" id="dv-prev" aria-label="이전 사진">‹</button>
+      <img id="dv-img" alt="">
+      <button class="dv-nav next" id="dv-next" aria-label="다음 사진">›</button>
+    </div>
   </div>
 </div>
 
@@ -353,9 +360,9 @@
 <div id="toast" class="toast" hidden></div>
 
 <script src="https://accounts.google.com/gsi/client" async defer></script>
-<script src="config.js?v=59"></script>
-<script src="korean-calendar.js?v=59"></script>
-<script src="diary.js?v=59"></script>
-<script src="app.js?v=59"></script>
+<script src="config.js?v=60"></script>
+<script src="korean-calendar.js?v=60"></script>
+<script src="diary.js?v=60"></script>
+<script src="app.js?v=60"></script>
 </body>
 </html>
