@@ -1592,20 +1592,37 @@ function openDayPopup(dateStr, scope) {
 function closeWeeklyPopup() { $('#wpop').hidden = true; }
 
 /** 예전에 기본 캘린더에 남아 있는 위클리 일정을 기본 분류로 모읍니다. */
-async function migrateWeeklyEvents() {
+/** 아직 기본 캘린더에 남아 있는 '예전 위클리 일정' 을 찾아 목록으로 돌려줍니다.
+    위클리 화면에서 적었지만, 분류(별도 캘린더)가 생기기 전에 저장된 것들입니다. */
+async function findLegacyWeekly() {
   await ensureCalendars();
-  const dest = defaultWCal();
-  const ids = [];
+  const out = [];
   let pageToken = null;
   do {
     const qs = new URLSearchParams({ singleEvents: 'false', maxResults: '250', showDeleted: 'false' });
     if (pageToken) qs.set('pageToken', pageToken);
     const j = await api(`${calBase(CAL_M)}?${qs}`);
     for (const it of (j.items || [])) {
-      if (it.extendedProperties?.private?.plannerSrc === 'w') ids.push(it.id);
+      if (it.extendedProperties?.private?.plannerSrc !== 'w') continue;
+      const dt = it.start?.dateTime || '';
+      out.push({
+        id: it.id,
+        text: it.summary || '(제목 없음)',
+        date: it.start?.date || dt.slice(0, 10) || '',
+        time: dt ? dt.slice(11, 16) : '',
+        rep:  it.recurrence ? recurrenceText(it.recurrence) : ''
+      });
     }
     pageToken = j.nextPageToken || null;
   } while (pageToken);
+  out.sort((a, b) => (a.date || '').localeCompare(b.date || '') || a.text.localeCompare(b.text));
+  return out;
+}
+
+async function migrateWeeklyEvents(list) {
+  await ensureCalendars();
+  const dest = defaultWCal();
+  const ids = (list || await findLegacyWeekly()).map(x => x.id);
 
   let done = 0;
   for (const id of ids) {
@@ -1816,6 +1833,43 @@ async function deleteSelectedSeries() {
 function esc(s) {
   return String(s).replace(/[&<>"']/g, c =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+/* ============================================================
+   예전 위클리 일정 목록
+   위클리에서 적었지만 분류(별도 캘린더)가 생기기 전에
+   기본 캘린더에 저장된 일정들입니다.
+   ============================================================ */
+let legacyList = [];
+
+function openLegacySheet() {
+  legacyList = [];
+  $('#oldw').hidden = false;
+  $('#ow-move').disabled = true;
+  $('#ow-sum').textContent = '찾는 중…';
+  $('#ow-list').innerHTML = '';
+  guard(async () => {
+    legacyList = await findLegacyWeekly();
+    renderLegacyList();
+  }, '예전 일정 찾는 중…');
+}
+
+function renderLegacyList() {
+  const dest = catNameOf(defaultWCal()) || CFG.WEEKLY_CALENDAR;
+  $('#ow-move').disabled = !legacyList.length;
+  $('#ow-sum').textContent = legacyList.length
+    ? `${legacyList.length}건이 아직 기본 캘린더에 남아 있습니다. "${dest}" 분류로 옮길 수 있습니다.`
+    : '남아 있는 예전 위클리 일정이 없습니다. 이미 모두 분류되어 있습니다.';
+  $('#ow-list').innerHTML = legacyList.map(x => {
+    const d = x.date ? parseYmd(x.date) : null;
+    const when = d ? `${d.getFullYear()}.${pad2(d.getMonth()+1)}.${pad2(d.getDate())} (${DOW_KR[d.getDay()]})`
+                   : '날짜 없음';
+    return `<div class="owrow">
+        <span class="ow-when">${when}${x.time ? ' ' + x.time : ''}</span>
+        <span class="ow-text">${esc(x.text)}</span>
+        ${x.rep ? `<span class="ow-rep">${esc(x.rep)}</span>` : ''}
+      </div>`;
+  }).join('');
 }
 
 /* ============================================================
@@ -2083,13 +2137,19 @@ function wire() {
   $('#mi-repeat').onclick = () => { $('#menu').hidden = true; openManager(); };
   $('#mi-migrate').onclick = () => {
     $('#menu').hidden = true;
+    openLegacySheet();
+  };
+  $('#ow-close').onclick = () => { $('#oldw').hidden = true; };
+  $('#oldw').onclick = e => { if (e.target.id === 'oldw') $('#oldw').hidden = true; };
+  $('#ow-move').onclick = () => {
     const dest = catNameOf(defaultWCal()) || CFG.WEEKLY_CALENDAR;
-    if (!confirm(`위클리에 적었던 일정 중 아직 기본 캘린더에 남아 있는 것들을
-"${dest}" 분류로 모두 옮깁니다. 계속할까요?`)) return;
+    if (!legacyList.length) return;
+    if (!confirm(`아래 ${legacyList.length}건을 "${dest}" 분류로 옮깁니다. 계속할까요?`)) return;
     guard(async () => {
-      const n = await migrateWeeklyEvents();
+      const n = await migrateWeeklyEvents(legacyList);
+      $('#oldw').hidden = true;
       renderAll();
-      toast(n ? `${n}건을 "${dest}" 로 옮겼습니다` : '옮길 일정이 없습니다 (이미 모두 분류되어 있습니다)');
+      toast(`${n}건을 "${dest}" 로 옮겼습니다`);
     }, '옮기는 중…');
   };
 
@@ -2440,7 +2500,7 @@ async function start() {
 
 /* 요청하는 권한이 바뀌면 예전 로그인으로는 안 되므로 다시 동의를 받습니다.
    (위클리 캘린더를 만들려면 캘린더 관리 권한이 새로 필요해졌습니다) */
-const APP_VERSION = '58';
+const APP_VERSION = '59';
 const SCOPE_VERSION = '3';
 
 async function boot() {

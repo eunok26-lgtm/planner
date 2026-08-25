@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" href="icons/icon-192.png">
-<link rel="stylesheet" href="app.css?v=58">
+<link rel="stylesheet" href="app.css?v=59">
 <style id="pagerule">@page { size: 297mm 210mm; margin: 0; }</style>
 </head>
 <body>
@@ -268,6 +268,19 @@
   </div>
 </div>
 
+<!-- ============ 예전 위클리 일정 목록 ============ -->
+<div id="oldw" class="sheet-back" hidden>
+  <div class="sheet-card wide" role="dialog" aria-modal="true">
+    <div class="sheet-head">
+      <button class="mini ghost" id="ow-close">닫기</button>
+      <strong>예전 위클리 일정</strong>
+      <button class="mini solid" id="ow-move">분류로 옮기기</button>
+    </div>
+    <p class="fld-note" id="ow-sum"></p>
+    <div id="ow-list" class="ow-list"></div>
+  </div>
+</div>
+
 <!-- ============ 표시할 캘린더 ============ -->
 <div id="calsheet" class="sheet-back" hidden>
   <div class="sheet-card" role="dialog" aria-modal="true">
@@ -340,9 +353,9 @@
 <div id="toast" class="toast" hidden></div>
 
 <script src="https://accounts.google.com/gsi/client" async defer></script>
-<script src="config.js?v=58"></script>
-<script src="korean-calendar.js?v=58"></script>
-<script src="diary.js?v=58"></script>
-<script src="app.js?v=58"></script>
+<script src="config.js?v=59"></script>
+<script src="korean-calendar.js?v=59"></script>
+<script src="diary.js?v=59"></script>
+<script src="app.js?v=59"></script>
 </body>
 </html>

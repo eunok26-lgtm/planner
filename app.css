@@ -934,3 +934,22 @@ body.is-dragging { user-select: none; -webkit-user-select: none; cursor: grabbin
 /* 육아일기 저장 버튼 — 고친 게 있으면 눈에 띄게 */
 #save-btn.dirty { background: var(--ink); color: var(--paper); }
 #save-btn:disabled { opacity: .6; }
+
+/* 예전 위클리 일정 목록 */
+.ow-list { max-height: 52dvh; overflow-y: auto; margin-top: 6px; }
+.owrow {
+  display: flex; align-items: baseline; gap: 9px;
+  padding: 9px 6px; border-bottom: 1px solid var(--line); font-size: 14px;
+}
+.owrow:last-child { border-bottom: none; }
+.ow-when { flex: 0 0 auto; font-size: 12px; color: var(--mute); font-variant-numeric: tabular-nums; }
+.ow-text { flex: 1; min-width: 0; word-break: break-all; }
+.ow-rep {
+  flex: 0 0 auto; font-size: 11px; color: var(--src-w);
+  background: var(--line); border-radius: 999px; padding: 2px 8px;
+}
+@media (max-width: 600px) {
+  .owrow { flex-wrap: wrap; gap: 4px 8px; }
+  .ow-text { flex: 1 1 100%; order: 2; }
+  .ow-rep { order: 3; }
+}
