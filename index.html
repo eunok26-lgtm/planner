@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" href="icons/icon-192.png">
-<link rel="stylesheet" href="app.css?v=57">
+<link rel="stylesheet" href="app.css?v=58">
 <style id="pagerule">@page { size: 297mm 210mm; margin: 0; }</style>
 </head>
 <body>
@@ -41,6 +41,7 @@
     <button class="chip" id="today-btn">오늘</button>
     <div class="spacer"></div>
     <span id="sync" class="sync" title="동기화 상태"></span>
+    <button class="chip" id="save-btn" hidden>저장</button>
     <button class="chip" id="print-btn" hidden>인쇄</button>
     <button class="chip ghost" id="more-btn" aria-label="더보기">⋯</button>
   </header>
@@ -91,6 +92,15 @@
         <textarea id="d-text" placeholder="오늘 아이는 어땠나요?"></textarea>
 
         <div class="d-sec">
+          <span class="d-lbl">사진 · 파일<button class="mini" id="d-pick">+ 고르기</button></span>
+          <input id="d-input" type="file" multiple hidden>
+          <div class="d-drop" id="d-drop">
+            사진이나 문서를 이 곳에 <b>끌어다 놓으세요</b>
+          </div>
+          <div class="d-files" id="d-files"></div>
+        </div>
+
+        <div class="d-sec">
           <span class="d-lbl">그림</span>
           <div class="dw-tools" id="dw-tools">
             <button data-c="#3f4854" class="sw" style="--sw:#3f4854" aria-label="검정"></button>
@@ -108,15 +118,6 @@
             <button id="dw-clear">모두 지우기</button>
           </div>
           <div class="dw-wrap"><canvas id="dw-canvas"></canvas></div>
-        </div>
-
-        <div class="d-sec">
-          <span class="d-lbl">사진 · 파일<button class="mini" id="d-pick">+ 고르기</button></span>
-          <input id="d-input" type="file" multiple hidden>
-          <div class="d-drop" id="d-drop">
-            사진이나 문서를 이 곳에 <b>끌어다 놓으세요</b>
-          </div>
-          <div class="d-files" id="d-files"></div>
         </div>
       </div>
     </section>
@@ -339,9 +340,9 @@
 <div id="toast" class="toast" hidden></div>
 
 <script src="https://accounts.google.com/gsi/client" async defer></script>
-<script src="config.js?v=57"></script>
-<script src="korean-calendar.js?v=57"></script>
-<script src="diary.js?v=57"></script>
-<script src="app.js?v=57"></script>
+<script src="config.js?v=58"></script>
+<script src="korean-calendar.js?v=58"></script>
+<script src="diary.js?v=58"></script>
+<script src="app.js?v=58"></script>
 </body>
 </html>

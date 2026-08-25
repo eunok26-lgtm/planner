@@ -369,6 +369,7 @@ function openDiary(ds) {
   const cached = localStorage.getItem('planner.diary.day.' + ds);
   dEntry = cached ? JSON.parse(cached) : emptyEntry();
   dLoadedDs = null;
+  markSave('');
   renderDiary();
   dwLoad(dEntry.draw);
 
@@ -382,10 +383,20 @@ function openDiary(ds) {
   }, '일기 불러오는 중…');
 }
 
+/** 저장 버튼의 표시를 바꿉니다. '' | dirty | saving | saved */
+function markSave(st) {
+  const b = $('#save-btn');
+  if (!b) return;
+  b.classList.toggle('dirty', st === 'dirty');
+  b.disabled = (st === 'saving');
+  b.textContent = st === 'saved' ? '저장됨' : st === 'saving' ? '저장 중…' : '저장';
+}
+
 /** 고쳐졌다고 표시하고, 잠시 뒤 저장합니다. */
 function diaryTouch() {
   clearTimeout(dSaveTimer);
   setSync('작성 중…');
+  markSave('dirty');
   dSaveTimer = setTimeout(dSaveNow, 1200);
 }
 
@@ -403,6 +414,7 @@ async function dSaveNow() {
   dSaving = true;
   try {
     setSync('저장 중…', 'busy');
+    markSave('saving');
     if (state.view === 'diary') dEntry.text = $('#d-text').value;
 
     if (dw.dirty) {
@@ -425,11 +437,15 @@ async function dSaveNow() {
     localStorage.setItem('planner.diary.day.' + ds, JSON.stringify(dEntry));
     renderMiniCal();
     setSync('저장됨');
-    setTimeout(() => { if (state.view === 'diary' && !dSaveTimer) setSync(''); }, 1500);
+    markSave('saved');
+    setTimeout(() => {
+      if (state.view === 'diary' && !dSaveTimer) { setSync(''); markSave(''); }
+    }, 1500);
   } catch (e) {
     console.error(e);
     const off = e.message === 'drive_off';
     setSync(off ? '드라이브 설정 필요' : '저장 실패', 'err');
+    markSave('dirty');
     toast(off
       ? '구글 클라우드에서 Google Drive API 를 켜야 합니다 (설정가이드 참고)'
       : '일기를 저장하지 못했습니다. 잠시 뒤 다시 시도합니다');
@@ -523,6 +539,9 @@ function wireDiary() {
 
   $('#d-text').addEventListener('input', e => { autoGrow(e.target); diaryTouch(); });
   $('#d-text').addEventListener('blur', dSaveFlush);
+
+  /* 자동 저장을 기다리지 않고 바로 저장 */
+  $('#save-btn').onclick = () => { clearTimeout(dSaveTimer); dSaveTimer = 0; dSaveNow(); };
 
   $('#d-pick').onclick   = () => $('#d-input').click();
   $('#d-input').onchange = e => { addDiaryFiles(e.target.files); e.target.value = ''; };

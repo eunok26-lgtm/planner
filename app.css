@@ -930,3 +930,7 @@ body.is-dragging { user-select: none; -webkit-user-select: none; cursor: grabbin
 .sheet-card.ro .chk, .sheet-card.ro .colorpick, .sheet-card.ro .dowpick {
   pointer-events: none; opacity: .7;
 }
+
+/* 육아일기 저장 버튼 — 고친 게 있으면 눈에 띄게 */
+#save-btn.dirty { background: var(--ink); color: var(--paper); }
+#save-btn:disabled { opacity: .6; }

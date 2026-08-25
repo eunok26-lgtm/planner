@@ -1861,6 +1861,7 @@ function showView(v) {
   $$('.tab').forEach(t => t.classList.toggle('is-on', t.dataset.view === v));
   ['month', 'week', 'today', 'shop', 'diary'].forEach(k => { $('#view-' + k).hidden = (k !== v); });
   $('#print-btn').hidden = (v !== 'week');
+  $('#save-btn').hidden = (v !== 'diary');
   const paged = (v === 'month' || v === 'week' || v === 'diary');
   $('#prev').style.visibility = $('#next').style.visibility = paged ? 'visible' : 'hidden';
   $('#today-btn').style.visibility = paged ? 'visible' : 'hidden';
@@ -2439,7 +2440,7 @@ async function start() {
 
 /* 요청하는 권한이 바뀌면 예전 로그인으로는 안 되므로 다시 동의를 받습니다.
    (위클리 캘린더를 만들려면 캘린더 관리 권한이 새로 필요해졌습니다) */
-const APP_VERSION = '57';
+const APP_VERSION = '58';
 const SCOPE_VERSION = '3';
 
 async function boot() {
