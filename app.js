@@ -879,10 +879,16 @@ function layoutWeek(days) {
   };
 }
 
+/* 달력(월간·일기의 작은 달력)이 시작하는 요일.
+   위클리와 인쇄물은 종이 양식이 월~일이라 CFG.WEEK_START 를 그대로 씁니다. */
+const CAL_START = CFG.MONTH_WEEK_START === undefined ? 0 : CFG.MONTH_WEEK_START;
+/** 요일 머리글 순서 (일요일 시작이면 일~토) */
+const dowOrder = start => (start === 1 ? [1,2,3,4,5,6,0] : [0,1,2,3,4,5,6]);
+
 /** 그 달을 그리는 데 필요한 주 수 (5주 또는 6주) */
 function weekRowsOf(a) {
   const first = new Date(a.getFullYear(), a.getMonth(), 1);
-  const gridStart = startOfWeek(first, CFG.WEEK_START);
+  const gridStart = startOfWeek(first, CAL_START);
   const daysInMonth = new Date(a.getFullYear(), a.getMonth() + 1, 0).getDate();
   const lead = Math.round((first - gridStart) / 86400000);
   return Math.ceil((lead + daysInMonth) / 7);
@@ -892,7 +898,7 @@ function weekRowsOf(a) {
     좌우로 밀 때 옆 달을 미리 그려두는 데도 같은 함수를 씁니다. */
 function monthCellsHTML(a) {
   const first = new Date(a.getFullYear(), a.getMonth(), 1);
-  const gridStart = startOfWeek(first, CFG.WEEK_START);
+  const gridStart = startOfWeek(first, CAL_START);
   const today = new Date();
   const cells = weekRowsOf(a) * 7;
 
@@ -974,8 +980,7 @@ function renderMonth(pass = 0) {
 
   const dowHead = $('#month-dow');
   if (!dowHead.childElementCount) {
-    const order = CFG.WEEK_START === 1 ? [1,2,3,4,5,6,0] : [0,1,2,3,4,5,6];
-    dowHead.innerHTML = order.map(i =>
+    dowHead.innerHTML = dowOrder(CAL_START).map(i =>
       `<div class="${i===0?'sun':i===6?'sat':''}">${DOW_KR[i]}</div>`).join('');
   }
 
@@ -2307,7 +2312,7 @@ async function start() {
 
 /* 요청하는 권한이 바뀌면 예전 로그인으로는 안 되므로 다시 동의를 받습니다.
    (위클리 캘린더를 만들려면 캘린더 관리 권한이 새로 필요해졌습니다) */
-const APP_VERSION = '55';
+const APP_VERSION = '56';
 const SCOPE_VERSION = '3';
 
 async function boot() {

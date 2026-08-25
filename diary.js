@@ -268,8 +268,8 @@ function diaryTitleOf(ds) {
 function renderMiniCal() {
   const m = diaryMonth;
   const first = new Date(m.getFullYear(), m.getMonth(), 1);
-  const gs = startOfWeek(first, CFG.WEEK_START);
-  const order = CFG.WEEK_START === 1 ? [1,2,3,4,5,6,0] : [0,1,2,3,4,5,6];
+  const gs = startOfWeek(first, CAL_START);      // 월간 달력과 같은 시작 요일
+  const order = dowOrder(CAL_START);
   const dim = new Date(m.getFullYear(), m.getMonth() + 1, 0).getDate();
   const lead = Math.round((first - gs) / 86400000);
   const cells = Math.ceil((lead + dim) / 7) * 7;
