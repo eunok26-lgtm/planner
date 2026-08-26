@@ -1985,6 +1985,18 @@ function enableDragSort(root, opt) {
     document.body.classList.add('is-dragging');
   };
 
+  /* 마우스 밑에 있는 것에서 '놓을 목록'을 찾습니다.
+     날짜 숫자나 절기 글자 위에 놓아도 그 날 목록으로 가도록,
+     칸(opt.cell) 안이면 그 칸의 목록을 씁니다. */
+  const findList = under => {
+    if (!under) return null;
+    const direct = under.closest(opt.list);
+    if (direct) return direct;
+    if (!opt.cell) return null;
+    const cell = under.closest(opt.cell);
+    return cell ? cell.querySelector(opt.list) : null;
+  };
+
   root.addEventListener('pointerdown', e => {
     if (e.button > 0) return;
     const h = e.target.closest(opt.handle);
@@ -2012,7 +2024,7 @@ function enableDragSort(root, opt) {
     st.el.style.pointerEvents = 'none';
     const under = document.elementFromPoint(e.clientX, e.clientY);
     st.el.style.pointerEvents = '';
-    const listEl = under && under.closest(opt.list);
+    const listEl = findList(under);
     if (!listEl) return;
 
     const items = [...listEl.querySelectorAll(opt.item)].filter(x => x !== st.el && x.dataset.id);
@@ -2343,6 +2355,7 @@ function wire() {
   enableDragSort($('#month-grid'), {
     scope: 'm1',                                       // 여러 날 막대는 끌지 않습니다
     handle: '.pill:not(.bar)', item: '.pill:not(.bar)', list: '.evs',
+    cell: '.mcell',                                    // 칸 어디에 놓아도 그 날로
     dateOf: listEl => listEl.closest('.mcell').dataset.date,
     endAnchor: listEl => listEl.querySelector('.more')      // "+N" 표시 위에 놓이도록
   });
@@ -2500,7 +2513,7 @@ async function start() {
 
 /* 요청하는 권한이 바뀌면 예전 로그인으로는 안 되므로 다시 동의를 받습니다.
    (위클리 캘린더를 만들려면 캘린더 관리 권한이 새로 필요해졌습니다) */
-const APP_VERSION = '60';
+const APP_VERSION = '61';
 const SCOPE_VERSION = '3';
 
 async function boot() {
