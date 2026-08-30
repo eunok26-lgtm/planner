@@ -1836,6 +1836,93 @@ function esc(s) {
 }
 
 /* ============================================================
+   공휴일 확인 — 구글 "대한민국의 휴일" 캘린더
+
+   앱 안의 표는 제가 손으로 적은 것이라 틀릴 수 있고,
+   나라에서 갑자기 정하는 임시공휴일은 계산으로 알 수 없습니다.
+   그래서 구글이 관리하는 공개 캘린더를 기준으로 삼고,
+   못 받아오면 앱 안의 표를 그대로 씁니다.
+   ============================================================ */
+const HOL_CAL  = 'ko.south_korea#holiday@group.v.calendar.google.com';
+const HOL_EVERY = 7 * 24 * 60 * 60 * 1000;      // 일주일에 한 번 확인
+const HOL_MIN   = 10;                            // 한 해에 이보다 적으면 뭔가 잘못된 것
+
+let HOL_AT = 0;                                  // 마지막으로 확인한 시각
+
+function loadHolidayCache() {
+  try {
+    const j = JSON.parse(localStorage.getItem('planner.hol') || 'null');
+    if (j && j.years) { HOL_AT = j.at || 0; Object.assign(KR_OVERRIDE, j.years); }
+  } catch (e) { /* 캐시가 깨졌으면 앱 안의 표를 씁니다 */ }
+}
+
+/** 그 해의 공휴일을 구글 캘린더에서 읽어옵니다. */
+async function fetchHolidayYear(year) {
+  const qs = new URLSearchParams({
+    timeMin: new Date(year, 0, 1).toISOString(),
+    timeMax: new Date(year + 1, 0, 2).toISOString(),
+    singleEvents: 'true', orderBy: 'startTime', maxResults: '250'
+  });
+  const j = await api(`${calBase(HOL_CAL)}?${qs}`);
+  const items = j.items || [];
+
+  /* 이 캘린더에는 공휴일이 아닌 기념일(제헌절·스승의날·국군의날 등)도 함께 들어 있어
+     걸러내야 합니다. 보통은 설명란에 "공휴일" 이라고 적혀 있습니다.
+     설명란이 아예 없는 경우에 대비해, 그때는 이름으로 가려냅니다. */
+  const byDesc = items.some(it => /공휴일|public holiday/i.test(it.description || ''));
+  const NAMES = /신정|새해|설날|삼일절|3·1|3\.1|어린이날|부처님|석가|현충일|광복절|추석|개천절|한글날|성탄|기독탄신|대체|임시공휴일/;
+  const keep = it => byDesc
+    ? /공휴일|public holiday/i.test(it.description || '')
+    : NAMES.test(it.summary || '');
+
+  const out = {};
+  for (const it of items) {
+    if (!keep(it)) continue;
+    const sd = it.start && it.start.date;
+    if (!sd) continue;
+    const ed = (it.end && it.end.date) || ymd(addDays(parseYmd(sd), 1));   // end 는 제외 경계
+    for (let d = parseYmd(sd); ymd(d) < ed; d = addDays(d, 1)) {
+      if (d.getFullYear() !== year) continue;
+      out[pad2(d.getMonth() + 1) + '-' + pad2(d.getDate())] = it.summary || '공휴일';
+    }
+  }
+  return out;
+}
+
+/** 필요하면 공휴일 표를 새로 받아옵니다.
+    { ok, changed, reason } — reason 은 안 됐을 때 왜 안 됐는지 */
+async function syncHolidays(force = false) {
+  const now = new Date().getFullYear();
+  const years = [now, now + 1, now + 2];
+  const stale = force || (Date.now() - HOL_AT > HOL_EVERY) || years.some(y => !KR_OVERRIDE[y]);
+  if (!stale) return { ok: true, changed: false, reason: 'fresh' };
+
+  let got = 0, thin = 0, failed = 0, changed = false;
+  for (const y of years) {
+    try {
+      const m = await fetchHolidayYear(y);
+      // 한 해 공휴일이 열 개도 안 되면 받아오기가 잘못된 것으로 보고 버립니다
+      if (Object.keys(m).length < HOL_MIN) { thin++; continue; }
+      got++;
+      if (JSON.stringify(KR_OVERRIDE[y]) !== JSON.stringify(m)) { KR_OVERRIDE[y] = m; changed = true; }
+    } catch (e) { failed++; }
+  }
+  if (!got) return { ok: false, changed: false, reason: failed ? 'network' : (thin ? 'thin' : 'empty') };
+
+  HOL_AT = Date.now();
+  localStorage.setItem('planner.hol', JSON.stringify({ at: HOL_AT, years: KR_OVERRIDE }));
+  return { ok: true, changed, reason: 'ok' };
+}
+
+const menuVerText = () => '버전 ' + APP_VERSION + ' · ' + holCheckedText();
+
+const holCheckedText = () => {
+  if (!HOL_AT) return '공휴일 확인 전';
+  const d = new Date(HOL_AT);
+  return `공휴일 확인 ${d.getMonth() + 1}월 ${d.getDate()}일`;
+};
+
+/* ============================================================
    예전 위클리 일정 목록
    위클리에서 적었지만 분류(별도 캘린더)가 생기기 전에
    기본 캘린더에 저장된 일정들입니다.
@@ -2173,7 +2260,20 @@ function wire() {
   $('#mg-list').onchange = updateMgCount;
   $('#mg-del').onclick = deleteSelectedSeries;
 
-  $('#menu-ver').textContent = '버전 ' + APP_VERSION;
+  $('#menu-ver').textContent = menuVerText();
+
+  $('#mi-holiday').onclick = () => {
+    $('#menu').hidden = true;
+    guard(async () => {
+      const r = await syncHolidays(true);
+      $('#menu-ver').textContent = menuVerText();
+      if (r.changed) renderAll();
+      toast(
+        r.ok      ? (r.changed ? '공휴일 정보를 새로 받았습니다' : '공휴일 정보가 최신입니다')
+      : r.reason === 'network' ? '구글에 연결하지 못했습니다. 앱 안의 표를 그대로 씁니다'
+                              : '구글 휴일 캘린더를 읽지 못했습니다. 앱 안의 표를 그대로 씁니다');
+    }, '공휴일 확인 중…');
+  };
 
   $('#mi-cals').onclick = () => {
     $('#menu').hidden = true;
@@ -2509,11 +2609,15 @@ async function start() {
   $('#gate').hidden = true;
   $('#app').hidden = false;
   showView('month');
+  // 공휴일은 조용히 확인합니다 (실패해도 앱 안의 표로 그대로 돌아갑니다)
+  syncHolidays()
+    .then(r => { if (r.changed) { renderAll(); $('#menu-ver').textContent = menuVerText(); } })
+    .catch(() => {});
 }
 
 /* 요청하는 권한이 바뀌면 예전 로그인으로는 안 되므로 다시 동의를 받습니다.
    (위클리 캘린더를 만들려면 캘린더 관리 권한이 새로 필요해졌습니다) */
-const APP_VERSION = '62';
+const APP_VERSION = '63';
 const SCOPE_VERSION = '3';
 
 async function boot() {
@@ -2525,6 +2629,7 @@ async function boot() {
   }
 
   loadCache();
+  loadHolidayCache();
   wire();
 
   if (!CFG.GOOGLE_CLIENT_ID || CFG.GOOGLE_CLIENT_ID.startsWith('여기에')) {

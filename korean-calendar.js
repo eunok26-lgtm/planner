@@ -55,6 +55,12 @@ const KR_BASE = {
 
 const SUB_WEEKEND = ['삼일절', '어린이날', '부처님오신날', '광복절', '개천절', '한글날', '성탄절'];
 
+/* 구글 "대한민국의 휴일" 캘린더에서 받아온 표 (연도 → {'MM-DD': 이름}).
+   받아온 해는 아래 계산 대신 이걸 씁니다.
+   나라에서 갑자기 정하는 임시공휴일까지 여기에 들어옵니다.
+   못 받아왔거나 오프라인이면 아래 계산 결과를 그대로 씁니다. */
+const KR_OVERRIDE = {};
+
 const _holCache = {};
 
 /** 그 해의 공휴일 표 (기본 공휴일 + 계산된 대체공휴일) */
@@ -159,10 +165,13 @@ function sameDay(a, b) {
       && a.getDate()     === b.getDate();
 }
 
-/** 공휴일 이름 (없으면 null) */
+/** 공휴일 이름 (없으면 null)
+    구글에서 받아온 표가 있으면 그 해는 그것만 믿습니다. */
 function holidayOf(d) {
-  const y = holidaysOf(d.getFullYear());
-  return y[pad2(d.getMonth() + 1) + '-' + pad2(d.getDate())] || null;
+  const y = d.getFullYear();
+  const k = pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+  const ov = KR_OVERRIDE[y];
+  return (ov ? ov[k] : holidaysOf(y)[k]) || null;
 }
 
 /** 절기·기념일 이름 (없으면 null) */
