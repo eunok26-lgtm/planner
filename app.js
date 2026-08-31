@@ -1470,6 +1470,7 @@ function syncLunarBox() {
   $('#ev-time-wrap').hidden = true;
   $('#ev-allday').closest('.chk').hidden = true;
   $('#ev-rep').closest('.fld').hidden = true;
+  $('#ev-enddate').value = $('#ev-date').value;   // 남아 있던 종료일이 끼어들지 않도록
   $('#rep-days').hidden = true;
   $('#rep-end').hidden = true;
   $('#ev-until-wrap').hidden = true;
@@ -1648,7 +1649,16 @@ async function saveSheet() {
     luLeap:   $('#lu-leap').value === '1',
     luYearly: $('#lu-yearly').checked
   };
-  // 음력이면 첫 번째로 오는 양력 날짜를 시작일로 씁니다
+  // 종일 일정은 시작일~종료일 사이 날 수를 기간으로 씁니다
+  if (f.allDay) {
+    const endStr = $('#ev-enddate').value || f.date;
+    const n = Math.round((parseYmd(endStr) - parseYmd(f.date)) / 86400000) + 1;
+    f.spanDays = Math.max(1, n || 1);
+  }
+  /* 음력이면 첫 번째로 오는 양력 날짜 하루짜리로 잡습니다.
+     이 계산은 반드시 위의 기간 계산 뒤에 와야 합니다 —
+     앞에 두었더니, 편집창에 남아 있던 예전 종료일과 새 시작일 사이가
+     기간으로 잡혀 여러 날에 걸친 일정이 되어 버렸습니다. */
   if (f.lunar) {
     f.lunarDates = lunarDates(f.luM, f.luD, f.luLeap, new Date().getFullYear());
     if (!f.lunarDates.length) { toast('그 음력 날짜를 찾지 못했습니다'); return; }
@@ -1656,12 +1666,6 @@ async function saveSheet() {
     f.allDay = true;
     f.spanDays = 1;
     f.rep = '';
-  }
-  // 종일 일정은 시작일~종료일 사이 날 수를 기간으로 씁니다
-  if (f.allDay) {
-    const endStr = $('#ev-enddate').value || f.date;
-    const n = Math.round((parseYmd(endStr) - parseYmd(f.date)) / 86400000) + 1;
-    f.spanDays = Math.max(1, n || 1);
   }
   if (f.rep === 'WEEKLY' && !f.repDays.length) {
     f.repDays = [RR_DAYS[parseYmd(f.date).getDay()]];   // 요일을 안 고르면 그 날 요일로
@@ -2772,7 +2776,7 @@ async function start() {
 
 /* 요청하는 권한이 바뀌면 예전 로그인으로는 안 되므로 다시 동의를 받습니다.
    (위클리 캘린더를 만들려면 캘린더 관리 권한이 새로 필요해졌습니다) */
-const APP_VERSION = '64';
+const APP_VERSION = '65';
 const SCOPE_VERSION = '3';
 
 async function boot() {
