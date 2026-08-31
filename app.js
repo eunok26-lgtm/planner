@@ -483,6 +483,20 @@ function lunarDates(m, d, leap, fromYear) {
 
 const RDATE_FMT = d => ymd(d).replace(/-/g, '');
 
+/** 반복 정보에서 날짜 목록(RDATE)만 뽑아 'YYYY-MM-DD' 로 돌려줍니다 */
+const rdatesOf = rec => (rec || [])
+  .filter(l => l.startsWith('RDATE'))
+  .flatMap(l => l.split(':').pop().split(','))
+  .map(x => x.trim().slice(0, 8))
+  .filter(x => /^\d{8}$/.test(x))
+  .map(x => `${x.slice(0, 4)}-${x.slice(4, 6)}-${x.slice(6, 8)}`)
+  .sort();
+
+const rdateLine = list => 'RDATE;VALUE=DATE:' + list.map(d => d.replace(/-/g, '')).join(',');
+
+/** 규칙(RRULE) 없이 날짜 목록만으로 반복하는 일정인지 — 음력 일정이 여기 해당합니다 */
+const isDateListSeries = rec => !!(rec || []).length && !(rec || []).some(l => l.startsWith('RRULE'));
+
 function eventBody(f) {
   const body = { summary: f.text, description: f.note || '' };
   // 색을 고르지 않았으면 null 로 보내 기본색으로 되돌립니다
@@ -614,6 +628,28 @@ async function countInstancesBefore(seriesId, cutDateStr, cal) {
 async function updateSeriesAfter(seriesId, fromDate, f, ev) {
   const cal = ev.cal || CAL_M;
   const master = await api(`${calBase(cal)}/${encodeURIComponent(seriesId)}`);
+
+  /* 음력 일정처럼 날짜 목록으로 반복하는 경우.
+     예전에는 규칙이 없으면 '매주'로 치고 새로 만들어서,
+     음력 생일이 매주 반복 일정으로 바뀌어 버렸습니다. */
+  if (isDateListSeries(master.recurrence)) {
+    const mStart = master.start?.date || (master.start?.dateTime ? ymd(new Date(master.start.dateTime)) : null);
+    const all = [...new Set([mStart, ...rdatesOf(master.recurrence)].filter(Boolean))].sort();
+    const rest = all.filter(d => d >= fromDate);
+
+    await truncateSeries(seriesId, fromDate, cal);      // 앞쪽은 원래대로 남깁니다
+
+    const body = eventBody({ ...f, date: rest[0] || fromDate });
+    const tail = rest.slice(1);
+    if (tail.length) body.recurrence = [rdateLine(tail)];
+    body.extendedProperties = { private: privateProps(ev, { ...f, src: ev.src }) };
+    await api(calBase(cal), { method: 'POST', body: JSON.stringify(body) });
+
+    store.loadedMonths.clear();
+    await loadMonth(parseYmd(rest[0] || fromDate), true);
+    return;
+  }
+
   const rrule = (master.recurrence || []).find(x => x.startsWith('RRULE')) || 'RRULE:FREQ=WEEKLY';
 
   // 횟수로 끝나는 반복이면, 남은 횟수를 계산해 새 반복에 넘겨줍니다
@@ -695,11 +731,17 @@ async function truncateSeries(seriesId, fromDateStr, cal) {
     until = cut.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
   }
 
-  const recurrence = (master.recurrence || []).map(line =>
-    line.startsWith('RRULE')
-      ? line.replace(/;?(UNTIL|COUNT)=[^;]*/g, '') + ';UNTIL=' + until
-      : line
-  );
+  /* 음력 일정처럼 날짜 목록으로 반복하는 것은 UNTIL 이 통하지 않습니다.
+     목록에서 그 날 이후를 덜어내야 합니다.
+     (이 처리가 없을 때는 아무 일도 일어나지 않아 '이후 삭제'가 먹히지 않았습니다) */
+  const recurrence = isDateListSeries(master.recurrence)
+    ? (dl => dl.length ? [rdateLine(dl)] : [])(
+        rdatesOf(master.recurrence).filter(d => d < fromDateStr))
+    : (master.recurrence || []).map(line =>
+        line.startsWith('RRULE')
+          ? line.replace(/;?(UNTIL|COUNT)=[^;]*/g, '') + ';UNTIL=' + until
+          : line
+      );
 
   await api(`${calBase(cal)}/${encodeURIComponent(seriesId)}`,
             { method: 'PATCH', body: JSON.stringify({ recurrence }) });
@@ -2776,7 +2818,7 @@ async function start() {
 
 /* 요청하는 권한이 바뀌면 예전 로그인으로는 안 되므로 다시 동의를 받습니다.
    (위클리 캘린더를 만들려면 캘린더 관리 권한이 새로 필요해졌습니다) */
-const APP_VERSION = '65';
+const APP_VERSION = '66';
 const SCOPE_VERSION = '3';
 
 async function boot() {
