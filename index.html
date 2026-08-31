@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" href="icons/icon-192.png">
-<link rel="stylesheet" href="app.css?v=63">
+<link rel="stylesheet" href="app.css?v=64">
 <style id="pagerule">@page { size: 297mm 210mm; margin: 0; }</style>
 </head>
 <body>
@@ -161,6 +161,20 @@
       <label class="fld" id="ev-time-wrap"><span>시간</span><input id="ev-time" type="time"></label>
     </div>
     <label class="chk"><input id="ev-allday" type="checkbox"> 하루 종일</label>
+    <label class="chk" id="ev-lunar-wrap"><input id="ev-lunar" type="checkbox"> 음력 날짜 (생일 · 기제사 등)</label>
+
+    <div id="lunar-box" hidden>
+      <div class="fld-row">
+        <label class="fld"><span>음력 월</span>
+          <select id="lu-m"></select></label>
+        <label class="fld"><span>음력 일</span>
+          <select id="lu-d"></select></label>
+        <label class="fld" id="lu-leap-wrap"><span>윤달</span>
+          <select id="lu-leap"><option value="">평달</option><option value="1">윤달</option></select></label>
+      </div>
+      <label class="chk"><input id="lu-yearly" type="checkbox" checked> 해마다 음력 날짜로 반복</label>
+      <p class="fld-note" id="lu-note"></p>
+    </div>
     <label class="chk" id="ev-pin-wrap"><input id="ev-pin" type="checkbox"> 항상 맨 위에 표시</label>
 
     <label class="fld" id="ev-cat-wrap"><span>분류</span>
@@ -361,9 +375,10 @@
 <div id="toast" class="toast" hidden></div>
 
 <script src="https://accounts.google.com/gsi/client" async defer></script>
-<script src="config.js?v=63"></script>
-<script src="korean-calendar.js?v=63"></script>
-<script src="diary.js?v=63"></script>
-<script src="app.js?v=63"></script>
+<script src="config.js?v=64"></script>
+<script src="korean-calendar.js?v=64"></script>
+<script src="lunar.js?v=64"></script>
+<script src="diary.js?v=64"></script>
+<script src="app.js?v=64"></script>
 </body>
 </html>

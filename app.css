@@ -979,3 +979,9 @@ body.is-dragging { user-select: none; -webkit-user-select: none; cursor: grabbin
   .ow-text { flex: 1 1 100%; order: 2; }
   .ow-rep { order: 3; }
 }
+
+/* 음력 일정 */
+#lunar-box { padding: 10px 12px; border-radius: 10px; background: var(--today); margin-top: 2px; }
+#lunar-box .fld-row { margin-bottom: 6px; }
+#lunar-box .fld-note { color: var(--ink-2); }
+#lunar-box .fld-note b { color: var(--ink); }

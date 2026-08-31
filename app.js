@@ -292,7 +292,8 @@ function normalizeEvent(g, calId) {
                  // 다른 캘린더에서 온 일정이면 그 캘린더의 이름·색을 함께 담습니다
                  exname: exOf(calId) ? exOf(calId).name : '',
                  excolor: exOf(calId) ? exOf(calId).color : '',
-                 pin: g.extendedProperties?.private?.plannerPin === '1' };
+                 pin: g.extendedProperties?.private?.plannerPin === '1',
+                 lunar: g.extendedProperties?.private?.plannerLunar || '' };
   if (allDay) {
     const from = parseYmd(g.start.date);
     const to   = parseYmd(g.end.date);              // end 는 제외 경계
@@ -449,6 +450,39 @@ function recurrenceText(recurrence) {
 }
 
 /* ---------------- 일정 쓰기 ---------------- */
+/* ============================================================
+   음력 일정
+
+   구글 캘린더에는 '음력으로 매년' 이라는 반복 규칙이 없습니다.
+   그래서 음력 날짜를 해마다 양력으로 바꿔서 그 날짜 목록(RDATE)을
+   일정에 붙여 둡니다. 구글이 보기에는 평범한 반복 일정이라
+   아이폰 캘린더에서도 그대로 보이고, 수정·삭제도 기존과 똑같이 됩니다.
+   ============================================================ */
+const LUNAR_YEARS = 30;                 // 몇 해치를 만들어 둘지
+
+/** 음력 날짜를 담아두는 표시. 'M-D' 또는 윤달이면 'M-D-L' */
+const lunarTag = f => f.luM + '-' + f.luD + (f.luLeap ? '-L' : '');
+const parseLunarTag = t => {
+  const a = String(t || '').split('-');
+  return a.length >= 2 ? { m: Number(a[0]), d: Number(a[1]), leap: a[2] === 'L' } : null;
+};
+
+/** 그 음력 날짜가 오는 양력 날짜들 (올해부터 LUNAR_YEARS 해치) */
+function lunarDates(m, d, leap, fromYear) {
+  const out = [];
+  for (let y = fromYear; y < fromYear + LUNAR_YEARS && y <= LUNAR_Y1; y++) {
+    let s = lunarToSolar(y, m, d, leap);
+    // 윤달은 몇 해에 한 번만 옵니다 — 없는 해는 평달로 대신합니다
+    if (!s && leap) s = lunarToSolar(y, m, d, false);
+    // 30일이 없는 작은달이면 그 달 마지막 날로
+    if (!s && d === 30) s = lunarToSolar(y, m, 29, leap) || lunarToSolar(y, m, 29, false);
+    if (s) out.push(s);
+  }
+  return out;
+}
+
+const RDATE_FMT = d => ymd(d).replace(/-/g, '');
+
 function eventBody(f) {
   const body = { summary: f.text, description: f.note || '' };
   // 색을 고르지 않았으면 null 로 보내 기본색으로 되돌립니다
@@ -472,14 +506,24 @@ function privateProps(ev, f) {
   const p = { plannerSrc: (f.src === 'w' ? 'w' : 'm') };
   if (ev && ev.order != null) p.plannerOrder = String(ev.order);
   if (f.pin) p.plannerPin = '1';
+  // 음력 일정이면 어떤 음력 날짜였는지 함께 적어 둡니다
+  const tag = f.lunar ? lunarTag(f) : (ev && ev.lunar);
+  if (tag) p.plannerLunar = tag;
   return p;
 }
 
 async function createEvent(f) {
   const body = eventBody(f);
   body.extendedProperties = { private: privateProps(null, f) };
-  const rec = buildRecurrence(f);
-  if (rec) body.recurrence = rec;
+  if (f.lunar) {
+    const rest = f.lunarDates.slice(1);
+    body.recurrence = (f.luYearly && rest.length)
+      ? ['RDATE;VALUE=DATE:' + rest.map(RDATE_FMT).join(',')] : undefined;
+    if (!body.recurrence) delete body.recurrence;
+  } else {
+    const rec = buildRecurrence(f);
+    if (rec) body.recurrence = rec;
+  }
   await ensureCalendars();
   await api(calBase(f.cal || calOf(f.src)), { method: 'POST', body: JSON.stringify(body) });
   await refreshAround(parseYmd(f.date));
@@ -1312,6 +1356,25 @@ function openSheet(dateStr, id, src) {
     $('#ev-cat').disabled = !!(ev && ev.seriesId);
   }
 
+  /* 음력 — 새 일정에서만 정할 수 있고, 이미 만든 것은 무엇이었는지 보여만 줍니다 */
+  const luTag = ev ? parseLunarTag(ev.lunar) : null;
+  $('#ev-lunar').checked  = !!luTag;
+  $('#ev-lunar').disabled = !!ev;
+  $('#ev-lunar-wrap').hidden = !!(ev && !luTag);
+  fillLunarSelects();
+  if (luTag) {
+    $('#lu-m').value = luTag.m;
+    $('#lu-d').value = luTag.d;
+    $('#lu-leap').value = luTag.leap ? '1' : '';
+  } else {
+    const base = parseYmd(ev ? ev.sd : dateStr);
+    const l = solarToLunar(base);
+    if (l) { $('#lu-m').value = l.m; $('#lu-d').value = l.d; $('#lu-leap').value = l.leap ? '1' : ''; }
+  }
+  $('#lu-yearly').checked  = luTag ? !!(ev && ev.seriesId) : true;
+  $('#lu-yearly').disabled = !!ev;
+  $$('#lunar-box select').forEach(x => { x.disabled = !!ev; });
+
   $('#ev-pin-wrap').hidden = !isW;          // 고정은 위클리에서만
   const pin0 = ev ? (ev.seriesId && seriesPin.has(ev.seriesId) ? seriesPin.get(ev.seriesId) : !!ev.pin) : false;
   $('#ev-pin').checked = pin0;
@@ -1348,6 +1411,8 @@ function openSheet(dateStr, id, src) {
   }
   syncRepFields();
 
+  syncLunarBox();          // 다른 칸을 다 정한 뒤에 음력 칸을 맞춥니다
+
   $('#ev-del-wrap').hidden = !ev;
   $('#ev-delete').textContent = inSeries ? '이 날짜만 삭제' : '이 일정 삭제';
   $('#ev-delete-after').hidden = !inSeries;
@@ -1383,6 +1448,67 @@ function askScope() {
       if (e.target.id === 'scopeask') done(null);      // 바깥을 누르면 취소
     };
   });
+}
+
+/** 음력 월·일 고르는 칸을 처음 한 번 만들어 둡니다 */
+function fillLunarSelects() {
+  if ($('#lu-m').childElementCount) return;
+  $('#lu-m').innerHTML = Array.from({ length: 12 }, (_, i) =>
+    `<option value="${i + 1}">${i + 1}월</option>`).join('');
+  $('#lu-d').innerHTML = Array.from({ length: 30 }, (_, i) =>
+    `<option value="${i + 1}">${i + 1}일</option>`).join('');
+}
+
+/** 음력을 켜고 끌 때 화면을 맞춥니다 */
+function syncLunarBox() {
+  const on = $('#ev-lunar').checked;
+  $('#lunar-box').hidden = !on;
+  if (!on) { syncDateFields(); syncRepFields(); return; }
+  // 음력일 때는 양력 날짜·하루종일·반복 칸을 감춥니다 (음력 쪽에서 정하므로)
+  $('#ev-date').closest('.fld').hidden = true;
+  $('#ev-end-wrap').hidden  = true;
+  $('#ev-time-wrap').hidden = true;
+  $('#ev-allday').closest('.chk').hidden = true;
+  $('#ev-rep').closest('.fld').hidden = true;
+  $('#rep-days').hidden = true;
+  $('#rep-end').hidden = true;
+  $('#ev-until-wrap').hidden = true;
+  $('#rep-note').hidden = true;
+  showLunarPreview();
+}
+
+/** 고른 음력 날짜가 양력으로 언제인지 보여줍니다 */
+function showLunarPreview() {
+  const m = Number($('#lu-m').value), d = Number($('#lu-d').value);
+  const leap = $('#lu-leap').value === '1';
+  const y0 = new Date().getFullYear();
+  const list = lunarDates(m, d, leap, y0);
+  const note = $('#lu-note');
+  if (!list.length) { note.textContent = '그 음력 날짜를 찾지 못했습니다.'; note.hidden = false; return; }
+  const f = list[0], g = list[1];
+  note.innerHTML = `올해는 <b>${f.getFullYear()}년 ${f.getMonth() + 1}월 ${f.getDate()}일 ` +
+    `(${DOW_KR[f.getDay()]})</b>` +
+    ($('#lu-yearly').checked && g
+      ? ` · 다음 해 ${g.getMonth() + 1}월 ${g.getDate()}일` +
+        ` · ${list.length}년치를 만들어 둡니다`
+      : '');
+  note.hidden = false;
+
+  /* 윤달은 몇 해에 한 번만 오고, 음력 30일은 없는 해가 있습니다.
+     그런 해에는 어떻게 잡는지 알려 줍니다. */
+  if (leap) {
+    const has = [];
+    for (let y = y0; y < y0 + LUNAR_YEARS && y <= LUNAR_Y1; y++) if (leapMonthOf(y) === m) has.push(y);
+    note.innerHTML += has.length
+      ? `<br>윤${m}월이 오는 해는 ${has.slice(0, 4).join(' · ')}${has.length > 4 ? ' …' : ''} 뿐이라,` +
+        ' 나머지 해는 평달 날짜로 잡습니다.'
+      : '<br>앞으로 이 달의 윤달이 오지 않아, 평달 날짜로 잡습니다.';
+  } else if (d === 30) {
+    let miss = 0;
+    for (let y = y0; y < y0 + LUNAR_YEARS && y <= LUNAR_Y1; y++) if (!lunarToSolar(y, m, 30, false)) miss++;
+    if (miss) note.innerHTML +=
+      `<br>${m}월이 29일까지인 해가 ${miss}번 있어, 그 해에는 29일로 잡습니다.`;
+  }
 }
 
 /** 고른 반복 종류에 따라 요일 선택·종료 조건 칸을 보여주거나 숨깁니다. */
@@ -1439,6 +1565,14 @@ async function setSeriesUntil(seriesId, cal, untilDate) {
 /** 반복 일정의 원본을 읽어와 '매주 목요일 · 10회' 같은 문장으로 보여줍니다. */
 async function showSeriesRule(ev) {
   const mine = ev.id;
+  const lu = parseLunarTag(ev.lunar);
+  if (lu) {                                   // 음력 일정은 RRULE 이 아니라 날짜 목록입니다
+    $('#ev-rep').innerHTML =
+      `<option>매년 음력 ${lu.leap ? '윤' : ''}${lu.m}월 ${lu.d}일</option>`;
+    $('#ev-seriesuntil').value = '';
+    seriesUntil0 = '';
+    return;
+  }
   let text = '반복 일정', until = '';
   try {
     const master = await api(`${calBase(ev.cal || CAL_M)}/${encodeURIComponent(ev.seriesId)}`);
@@ -1456,6 +1590,9 @@ async function showSeriesRule(ev) {
 /** '하루 종일' 여부에 따라 종료일 / 시간 칸을 바꿔 보여줍니다. */
 function syncDateFields() {
   const allDay = $('#ev-allday').checked;
+  $('#ev-date').closest('.fld').hidden = false;
+  $('#ev-allday').closest('.chk').hidden = false;
+  $('#ev-rep').closest('.fld').hidden = false;
   $('#ev-end-wrap').hidden  = !allDay;
   $('#ev-time-wrap').hidden = allDay;
   $('#ev-date-lbl').textContent = allDay ? '시작일' : '날짜';
@@ -1504,8 +1641,22 @@ async function saveSheet() {
     repEnd:     $('#ev-repend').value,
     repCount:   Number($('#ev-repcount').value) || 0,
     repUntil:   $('#ev-repuntil').value,
-    repEditable: !$('#ev-rep').disabled      // 반복 중 하나면 규칙을 건드리지 않습니다
+    repEditable: !$('#ev-rep').disabled,     // 반복 중 하나면 규칙을 건드리지 않습니다
+    lunar:    $('#ev-lunar').checked && !$('#ev-lunar').disabled,
+    luM:      Number($('#lu-m').value),
+    luD:      Number($('#lu-d').value),
+    luLeap:   $('#lu-leap').value === '1',
+    luYearly: $('#lu-yearly').checked
   };
+  // 음력이면 첫 번째로 오는 양력 날짜를 시작일로 씁니다
+  if (f.lunar) {
+    f.lunarDates = lunarDates(f.luM, f.luD, f.luLeap, new Date().getFullYear());
+    if (!f.lunarDates.length) { toast('그 음력 날짜를 찾지 못했습니다'); return; }
+    f.date = ymd(f.lunarDates[0]);
+    f.allDay = true;
+    f.spanDays = 1;
+    f.rep = '';
+  }
   // 종일 일정은 시작일~종료일 사이 날 수를 기간으로 씁니다
   if (f.allDay) {
     const endStr = $('#ev-enddate').value || f.date;
@@ -2531,6 +2682,10 @@ function wire() {
 
   /* 편집 시트 */
   $('#ev-cancel').onclick = closeSheet;
+  $('#ev-lunar').onchange = syncLunarBox;
+  ['#lu-m', '#lu-d', '#lu-leap'].forEach(sel => $(sel).onchange = showLunarPreview);
+  $('#lu-yearly').onchange = showLunarPreview;
+
   $('#ev-save').onclick   = saveSheet;
   $('#ev-allday').onchange = syncDateFields;
   $('#ev-date').onchange = () => {
@@ -2617,7 +2772,7 @@ async function start() {
 
 /* 요청하는 권한이 바뀌면 예전 로그인으로는 안 되므로 다시 동의를 받습니다.
    (위클리 캘린더를 만들려면 캘린더 관리 권한이 새로 필요해졌습니다) */
-const APP_VERSION = '63';
+const APP_VERSION = '64';
 const SCOPE_VERSION = '3';
 
 async function boot() {
