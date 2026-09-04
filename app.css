@@ -985,3 +985,36 @@ body.is-dragging { user-select: none; -webkit-user-select: none; cursor: grabbin
 #lunar-box .fld-row { margin-bottom: 6px; }
 #lunar-box .fld-note { color: var(--ink-2); }
 #lunar-box .fld-note b { color: var(--ink); }
+
+/* ============================================================
+   날짜·시간 칸의 달력 단추
+
+   브라우저가 그려주는 기본 아이콘은 거의 검정입니다.
+   앱이 어두운 화면일 때 그 아이콘이 어두운 배경에 묻혀 보이지 않았습니다.
+   ① color-scheme 으로 지금이 밝은 화면인지 어두운 화면인지 알려주고
+   ② 아이콘도 앱 색으로 직접 그려 넣어 어느 쪽에서든 또렷하게 보이게 합니다.
+   ============================================================ */
+:root { color-scheme: light; }
+
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator {
+  width: 24px; height: 24px; margin: 0 -2px 0 4px; padding: 0;
+  opacity: 1; cursor: pointer; border-radius: 6px;
+  background-repeat: no-repeat; background-position: center; background-size: 19px 19px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235b7c99' stroke-width='2' stroke-linecap='round'%3E%3Crect x='3' y='5' width='18' height='16' rx='3'/%3E%3Cpath d='M8 3v4M16 3v4M3.5 10h17'/%3E%3C/svg%3E");
+}
+input[type="time"]::-webkit-calendar-picker-indicator { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235b7c99' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 7v5.5l3.5 2'/%3E%3C/svg%3E"); }
+
+input[type="date"]::-webkit-calendar-picker-indicator:hover,
+input[type="time"]::-webkit-calendar-picker-indicator:hover { background-color: var(--line); }
+input[type="date"]::-webkit-calendar-picker-indicator:active,
+input[type="time"]::-webkit-calendar-picker-indicator:active { transform: scale(.92); }
+
+/* 잠긴 칸(반복 일정 등)에서는 눌러도 소용없으니 흐리게 */
+input:disabled::-webkit-calendar-picker-indicator { opacity: .35; cursor: default; }
+
+@media (prefers-color-scheme: dark) {
+  :root { color-scheme: dark; }
+  input[type="date"]::-webkit-calendar-picker-indicator { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238bb0cf' stroke-width='2' stroke-linecap='round'%3E%3Crect x='3' y='5' width='18' height='16' rx='3'/%3E%3Cpath d='M8 3v4M16 3v4M3.5 10h17'/%3E%3C/svg%3E"); }
+  input[type="time"]::-webkit-calendar-picker-indicator { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238bb0cf' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 7v5.5l3.5 2'/%3E%3C/svg%3E"); }
+}

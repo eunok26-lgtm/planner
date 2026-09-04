@@ -2818,7 +2818,7 @@ async function start() {
 
 /* 요청하는 권한이 바뀌면 예전 로그인으로는 안 되므로 다시 동의를 받습니다.
    (위클리 캘린더를 만들려면 캘린더 관리 권한이 새로 필요해졌습니다) */
-const APP_VERSION = '66';
+const APP_VERSION = '67';
 const SCOPE_VERSION = '3';
 
 async function boot() {
