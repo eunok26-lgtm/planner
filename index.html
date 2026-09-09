@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" href="icons/icon-192.png">
-<link rel="stylesheet" href="app.css?v=67">
+<link rel="stylesheet" href="app.css?v=68">
 <style id="pagerule">@page { size: 297mm 210mm; margin: 0; }</style>
 </head>
 <body>
@@ -33,10 +33,10 @@
 
   <header class="topbar">
     <button class="nav-btn" id="prev" aria-label="이전">‹</button>
-    <div class="topbar-title">
+    <button class="topbar-title" id="title-btn" title="눌러서 원하는 연도·월로 이동">
       <strong id="title">—</strong>
       <span id="subtitle"></span>
-    </div>
+    </button>
     <button class="nav-btn" id="next" aria-label="다음">›</button>
     <button class="chip" id="today-btn">오늘</button>
     <div class="spacer"></div>
@@ -296,6 +296,23 @@
   </div>
 </div>
 
+<!-- ============ 연도·월 골라서 이동 ============ -->
+<div id="jump" class="sheet-back" hidden>
+  <div class="sheet-card" role="dialog" aria-modal="true">
+    <div class="sheet-head">
+      <button class="mini ghost" id="jp-close">닫기</button>
+      <strong>날짜로 가기</strong>
+      <button class="mini" id="jp-today">오늘</button>
+    </div>
+    <div class="jp-year">
+      <button class="mc-nav" id="jp-prev" aria-label="이전 해">‹</button>
+      <select id="jp-y" aria-label="연도"></select>
+      <button class="mc-nav" id="jp-next" aria-label="다음 해">›</button>
+    </div>
+    <div class="jp-months" id="jp-m"></div>
+  </div>
+</div>
+
 <!-- ============ 표시할 캘린더 ============ -->
 <div id="calsheet" class="sheet-back" hidden>
   <div class="sheet-card" role="dialog" aria-modal="true">
@@ -375,10 +392,10 @@
 <div id="toast" class="toast" hidden></div>
 
 <script src="https://accounts.google.com/gsi/client" async defer></script>
-<script src="config.js?v=67"></script>
-<script src="korean-calendar.js?v=67"></script>
-<script src="lunar.js?v=67"></script>
-<script src="diary.js?v=67"></script>
-<script src="app.js?v=67"></script>
+<script src="config.js?v=68"></script>
+<script src="korean-calendar.js?v=68"></script>
+<script src="lunar.js?v=68"></script>
+<script src="diary.js?v=68"></script>
+<script src="app.js?v=68"></script>
 </body>
 </html>

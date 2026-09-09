@@ -2157,6 +2157,52 @@ function renderLegacyList() {
 }
 
 /* ============================================================
+   연도·월 골라서 이동
+
+   ‹ › 로 한 달씩 넘기는 것 말고, 몇 년 떨어진 달로도 바로 갈 수 있게
+   상단 제목을 누르면 열립니다. 월간과 위클리에서 씁니다.
+   ============================================================ */
+let jumpY = null;                      // 창에서 펼쳐 놓은 연도
+
+const JUMP_Y0 = 1970;
+const jumpY1 = () => new Date().getFullYear() + 30;
+
+function openJump() {
+  if (state.view !== 'month' && state.view !== 'week') return;
+  jumpY = state.anchor.getFullYear();
+  renderJump();
+  $('#jump').hidden = false;
+}
+
+function renderJump() {
+  const now = new Date(), a = state.anchor;
+  const sel = $('#jp-y');
+  if (!sel.childElementCount) {
+    const y1 = jumpY1();
+    let h = '';
+    for (let y = JUMP_Y0; y <= y1; y++) h += `<option value="${y}">${y}년</option>`;
+    sel.innerHTML = h;
+  }
+  sel.value = String(jumpY);
+  $('#jp-m').innerHTML = Array.from({ length: 12 }, (_, i) => {
+    const here = (jumpY === a.getFullYear() && i === a.getMonth());
+    const isNow = (jumpY === now.getFullYear() && i === now.getMonth());
+    return `<button class="jpm${here ? ' on' : ''}${isNow ? ' now' : ''}" data-m="${i}">${i + 1}월</button>`;
+  }).join('');
+}
+
+/** 그 달로 옮깁니다. 이번 달이면 오늘 날짜로 (위클리가 이번 주를 열도록) */
+function jumpTo(y, m) {
+  $('#jump').hidden = true;
+  const now = new Date();
+  const day = (y === now.getFullYear() && m === now.getMonth()) ? now.getDate() : 1;
+  state.anchor = new Date(y, m, day);
+  if (state.view === 'week') { weekDayIdx = null; weekScrollToday = true; }
+  renderAll();
+  syncCurrentView();
+}
+
+/* ============================================================
    표시할 캘린더 고르기
    ============================================================ */
 function renderCalList() {
@@ -2200,6 +2246,7 @@ function showView(v) {
   ['month', 'week', 'today', 'shop', 'diary'].forEach(k => { $('#view-' + k).hidden = (k !== v); });
   $('#print-btn').hidden = (v !== 'week');
   $('#save-btn').hidden = (v !== 'diary');
+  $('#title-btn').disabled = !(v === 'month' || v === 'week');   // 날짜 화면에서만 누를 수 있게
   const paged = (v === 'month' || v === 'week' || v === 'diary');
   $('#prev').style.visibility = $('#next').style.visibility = paged ? 'visible' : 'hidden';
   $('#today-btn').style.visibility = paged ? 'visible' : 'hidden';
@@ -2354,6 +2401,22 @@ function wire() {
   buildPrintBinding();
   $('#prev').onclick = () => shift(-1);
   $('#next').onclick = () => shift(1);
+
+  /* 제목을 누르면 연도·월 고르는 창 */
+  $('#title-btn').onclick = openJump;
+  $('#jp-close').onclick = () => { $('#jump').hidden = true; };
+  $('#jump').onclick = e => { if (e.target.id === 'jump') $('#jump').hidden = true; };
+  $('#jp-prev').onclick = () => { if (jumpY > JUMP_Y0) { jumpY--; renderJump(); } };
+  $('#jp-next').onclick = () => { if (jumpY < jumpY1()) { jumpY++; renderJump(); } };
+  $('#jp-y').onchange = e => { jumpY = Number(e.target.value); renderJump(); };
+  $('#jp-m').onclick = e => {
+    const b = e.target.closest('[data-m]');
+    if (b) jumpTo(jumpY, Number(b.dataset.m));
+  };
+  $('#jp-today').onclick = () => {
+    const n = new Date();
+    jumpTo(n.getFullYear(), n.getMonth());
+  };
   $('#today-btn').onclick = () => {
     if (state.view === 'diary') return openDiary(ymd(new Date()));
     state.anchor = new Date(); renderAll(); syncCurrentView();
@@ -2818,7 +2881,7 @@ async function start() {
 
 /* 요청하는 권한이 바뀌면 예전 로그인으로는 안 되므로 다시 동의를 받습니다.
    (위클리 캘린더를 만들려면 캘린더 관리 권한이 새로 필요해졌습니다) */
-const APP_VERSION = '67';
+const APP_VERSION = '68';
 const SCOPE_VERSION = '3';
 
 async function boot() {
