@@ -281,8 +281,10 @@ function normalizeEvent(g, calId) {
   // 구글 캘린더 앱에서 직접 넣은 일정은 표시가 없으므로 월간에 보입니다.
   // 어느 캘린더에서 왔는지로 판단합니다.
   // 예전에 기본 캘린더에 저장된 위클리 일정도 계속 위클리로 보이도록 표시를 함께 봅니다.
-  const src = (calId && isWeeklyCal(calId)) ? 'w'
-            : (g.extendedProperties?.private?.plannerSrc === 'w' ? 'w' : 'm');
+  const srcTag = g.extendedProperties?.private?.plannerSrc;
+  const src = srcTag === 'b' ? 'b'                        // 양쪽에 표시하기로 한 일정
+            : (calId && isWeeklyCal(calId)) ? 'w'
+            : (srcTag === 'w' ? 'w' : 'm');
   // 반복 일정이면 원본(마스터) id 가 함께 옵니다
   const meta = { order: Number.isFinite(order) ? order : null, created, src,
                  seriesId: g.recurringEventId || null,
@@ -373,10 +375,14 @@ const orderKey = e => (e.order != null ? e.order : e.created);
 /* 화면별로 보여줄 일정의 범위.
    월간과 위클리는 서로 겹치지 않게 나눠 가집니다.
    구글 캘린더 앱에서 직접 넣어 출처 표시가 없는 일정은 월간에 들어갑니다. */
+/* 출처 표시 : 'm' 월간 / 'w' 위클리 / 'b' 양쪽에 함께 */
 const SCOPE = {
-  m: e => e.src !== 'w',                   // 월간 : 월간에서 넣은 것 + 외부에서 들어온 것
-  w: e => e.src === 'w',                   // 위클리 : 위클리에서 넣은 것만
-  m1: e => e.src !== 'w' && !e.multi       // 월간에서 끌어 옮길 수 있는 것 = 하루짜리만
+  m:  e => e.src !== 'w',                  // 월간 : 월간 것 + 외부에서 들어온 것 + 양쪽
+  w:  e => e.src === 'w' || e.src === 'b', // 위클리 : 위클리 것 + 양쪽
+  m1: e => e.src !== 'w' && !e.multi,      // 월간에서 끌어 옮길 수 있는 것 = 하루짜리만
+  /* 월간의 W 단추용 — 위클리에만 있는 것.
+     양쪽 일정은 월간에 알약으로 이미 보이므로 W 안에 또 넣지 않습니다. */
+  wonly: e => e.src === 'w'
 };
 const eventsFor = (dateStr, scope) => eventsOn(dateStr).filter(SCOPE[scope]);
 
@@ -517,7 +523,7 @@ function eventBody(f) {
 
 /** 구글에 함께 저장하는 부가정보. 한 번에 다 써야 기존 값이 지워지지 않습니다. */
 function privateProps(ev, f) {
-  const p = { plannerSrc: (f.src === 'w' ? 'w' : 'm') };
+  const p = { plannerSrc: f.both ? 'b' : (f.src === 'w' ? 'w' : 'm') };
   if (ev && ev.order != null) p.plannerOrder = String(ev.order);
   if (f.pin) p.plannerPin = '1';
   // 음력 일정이면 어떤 음력 날짜였는지 함께 적어 둡니다
@@ -809,7 +815,7 @@ async function reorderEvent(id, fromDate, toDate, index, scope = 'm', pinned = f
   const moving = eventsOn(fromDate).find(e => e.id === id) || {};
   const body = { extendedProperties: { private: {
     plannerOrder: String(Math.round(val)),
-    plannerSrc: moving.src === 'w' ? 'w' : 'm',
+    plannerSrc: moving.src === 'b' ? 'b' : (moving.src === 'w' ? 'w' : 'm'),
     ...(moving.pin ? { plannerPin: '1' } : {})
   } } };
 
@@ -836,7 +842,7 @@ async function renumberDay(dateStr, scope = 'm') {
       method: 'PATCH',
       body: JSON.stringify({ extendedProperties: { private: {
         plannerOrder: String(base + i * 60000),
-        plannerSrc: list[i].src === 'w' ? 'w' : 'm',
+        plannerSrc: list[i].src === 'b' ? 'b' : (list[i].src === 'w' ? 'w' : 'm'),
         ...(list[i].pin ? { plannerPin: '1' } : {})
       } } })
     });
@@ -1067,7 +1073,7 @@ function monthCellsHTML(a) {
       const ds = ymd(d);
       const kind = dayKind(d);
       const label = holidayOf(d) || termOf(d) || '';
-      const weekly = eventsFor(ds, 'w');
+      const weekly = eventsFor(ds, 'wonly');   // 양쪽 일정은 이미 알약으로 보입니다
 
       // ① 여러 날 막대 — 주 안에서 같은 줄에 오도록 빈 자리는 자리표로 채웁니다
       let rows = '';
@@ -1310,10 +1316,12 @@ function renderToday() {
   const evs = eventsOn(ds);
   $('#today-events').innerHTML = evs.length
     ? evs.map(e => {
-        const w = e.src === 'w';
+        const w = e.src === 'w', both = e.src === 'b';
         const badge = e.excolor
           ? `<span class="src ex" style="background:${e.excolor}" title="${esc(e.exname)} 캘린더"></span>`
-          : `<span class="src ${w ? 'w' : 'm'}" title="${w ? '위클리에서 추가' : '월간에서 추가'}">${w ? 'W' : 'M'}</span>`;
+          : both
+            ? '<span class="src mw" title="월간·위클리에 함께 표시">MW</span>'
+            : `<span class="src ${w ? 'w' : 'm'}" title="${w ? '위클리에서 추가' : '월간에서 추가'}">${w ? 'W' : 'M'}</span>`;
         return `<button class="ev${colorCls(e)}" data-id="${e.id}" data-date="${ds}">
          ${badge}
          <span class="t">${e.allDay ? '종일' : e.time}</span>
@@ -1418,7 +1426,14 @@ function openSheet(dateStr, id, src) {
   $('#lu-yearly').disabled = !!ev;
   $$('#lunar-box select').forEach(x => { x.disabled = !!ev; });
 
-  $('#ev-pin-wrap').hidden = !isW;          // 고정은 위클리에서만
+  /* 양쪽에 함께 표시 — 월간에서 열면 "위클리에도", 위클리에서 열면 "월간에도" */
+  const bothNow = !!(ev && ev.src === 'b');
+  $('#ev-both').checked = bothNow;
+  $('#ev-both-lbl').textContent = isW ? '월간에도 함께 표시' : '위클리에도 함께 표시';
+  $('#ev-both-wrap').hidden = false;
+
+  // 고정은 위클리에 보이는 일정에만 (양쪽 일정도 위클리에 나오므로 함께)
+  $('#ev-pin-wrap').hidden = !(isW || bothNow);
   const pin0 = ev ? (ev.seriesId && seriesPin.has(ev.seriesId) ? seriesPin.get(ev.seriesId) : !!ev.pin) : false;
   $('#ev-pin').checked = pin0;
   editPin0 = pin0;
@@ -1677,7 +1692,8 @@ async function saveSheet() {
     src: sheetSrc,
     spanDays: 1,
     color: $('#ev-color .sw.on')?.dataset.c || '',
-    pin: (sheetSrc === 'w') && $('#ev-pin').checked,
+    both: $('#ev-both').checked,
+    pin: (sheetSrc === 'w' || $('#ev-both').checked) && $('#ev-pin').checked,
     cal: (sheetSrc === 'w' && !$('#ev-cat').disabled
           && $('#ev-cat').value !== '__none__') ? $('#ev-cat').value : null,
     rep:        $('#ev-rep').value,
@@ -1769,7 +1785,7 @@ let popScope = 'w';   // 'm' 월간 / 'w' 위클리
 function openDayPopup(dateStr, scope) {
   popScope = scope;
   const d = parseYmd(dateStr);
-  const list = eventsFor(dateStr, scope === 'm' ? 'm' : 'w');
+  const list = eventsFor(dateStr, scope === 'm' ? 'm' : scope === 'wonly' ? 'wonly' : 'w');
   const hol = holidayOf(d), term = termOf(d);
 
   $('#wp-title').textContent =
@@ -2579,7 +2595,7 @@ function wire() {
   $('#month-grid').onclick = e => {
     if (dragBlockClick) return;                 // 방금 끌어놓은 것이면 편집창을 열지 않습니다
     const wb = e.target.closest('.wbtn');
-    if (wb) { e.stopPropagation(); return openDayPopup(wb.dataset.date, 'w'); }
+    if (wb) { e.stopPropagation(); return openDayPopup(wb.dataset.date, 'wonly'); }
     const more = e.target.closest('.more');
     if (more) { e.stopPropagation(); return openDayPopup(more.dataset.date, 'm'); }
     const pill = e.target.closest('.pill');
@@ -2794,6 +2810,11 @@ function wire() {
 
   /* 편집 시트 */
   $('#ev-cancel').onclick = closeSheet;
+  $('#ev-both').onchange = () => {
+    // 위클리에 보이게 되면 '항상 맨 위' 도 쓸 수 있습니다
+    $('#ev-pin-wrap').hidden = !(sheetSrc === 'w' || $('#ev-both').checked);
+  };
+
   $('#ev-lunar').onchange = syncLunarBox;
   ['#lu-m', '#lu-d', '#lu-leap'].forEach(sel => $(sel).onchange = showLunarPreview);
   $('#lu-yearly').onchange = showLunarPreview;
@@ -2884,7 +2905,7 @@ async function start() {
 
 /* 요청하는 권한이 바뀌면 예전 로그인으로는 안 되므로 다시 동의를 받습니다.
    (위클리 캘린더를 만들려면 캘린더 관리 권한이 새로 필요해졌습니다) */
-const APP_VERSION = '69';
+const APP_VERSION = '70';
 const SCOPE_VERSION = '3';
 
 async function boot() {

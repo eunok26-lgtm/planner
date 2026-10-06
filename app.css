@@ -1108,3 +1108,9 @@ input:disabled::-webkit-calendar-picker-indicator { opacity: .35; cursor: defaul
 
 /* 인쇄할 때는 화면용 식단 칸을 숨깁니다 (종이 양식은 따로 그립니다) */
 @media print { .meal { display: none !important; } }
+
+/* 오늘 화면 — 월간·위클리에 함께 나오는 일정 (M 색 반, W 색 반) */
+.ev .src.mw {
+  font-size: 8px; letter-spacing: -.04em;
+  background: linear-gradient(135deg, var(--src-m) 50%, var(--src-w) 50%);
+}
