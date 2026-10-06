@@ -1050,3 +1050,61 @@ input:disabled::-webkit-calendar-picker-indicator { opacity: .35; cursor: defaul
 .jpm:active { transform: scale(.96); }
 .jpm.now { box-shadow: inset 0 0 0 2px var(--accent); }   /* 이번 달 */
 .jpm.on  { background: var(--ink); color: var(--paper); } /* 지금 보고 있는 달 */
+
+/* ============================================================
+   이번 주 식단 (위클리 아래)
+   ============================================================ */
+.meal { border-top: 1px solid var(--line); margin-top: 14px; padding: 12px 0 0; }
+.meal-h {
+  font-size: 11px; font-weight: 800; letter-spacing: .12em; color: var(--mute);
+  padding: 0 10px; margin-bottom: 8px;
+}
+.meal-wrap { overflow-x: auto; }
+.meal-grid {
+  display: grid; grid-template-columns: repeat(7, minmax(0, 1fr));
+  min-width: 700px;                 /* 위 위클리 칸과 폭을 맞춥니다 */
+}
+.mcol {
+  border-right: 1px solid var(--line); padding: 0 8px 10px;
+  display: flex; flex-direction: column; gap: 4px; min-width: 0;
+}
+.mcol:last-child { border-right: none; }
+.mcol.is-today { background: var(--today); }
+
+.mday { display: flex; align-items: baseline; gap: 4px; margin-bottom: 1px; }
+.mday b { font-size: 10px; font-weight: 800; letter-spacing: .1em; color: var(--mute); }
+.mday span { font-size: 11px; font-weight: 700; color: var(--ink-2); }
+.mcol.sun .mday b, .mcol.sun .mday span, .mcol.hol .mday b, .mcol.hol .mday span { color: var(--hol); }
+.mcol.sat .mday b, .mcol.sat .mday span { color: var(--sat); }
+
+.mmenu, .mnote {
+  width: 100%; border: 1px solid var(--line); border-radius: 7px;
+  background: var(--card); color: var(--ink); padding: 6px 7px;
+  font-size: 12px; line-height: 1.45; resize: none;
+}
+.mmenu { min-height: 46px; }
+.mnote { font-size: 11px; color: var(--ink-2); }
+.mmenu::placeholder, .mnote::placeholder { color: var(--mute); }
+.mmenu:focus, .mnote:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: transparent; }
+
+/* 폰에서는 요일을 세로로 늘어놓습니다 */
+@media (max-width: 600px) {
+  .meal-grid { grid-template-columns: 1fr; min-width: 0; }
+  /* 요일은 왼쪽에, 메뉴와 메모는 그 오른쪽에 위아래로.
+     한 줄에 셋을 다 넣으면 메모 칸이 눌려 글자가 거의 안 보입니다. */
+  .mcol {
+    border-right: none; border-bottom: 1px solid var(--line);
+    flex-direction: row; flex-wrap: wrap; align-items: flex-start;
+    gap: 6px 7px; padding: 8px 12px;
+  }
+  .mcol:last-child { border-bottom: none; }
+  .mday { flex: 0 0 34px; flex-direction: column; gap: 0; margin: 4px 0 0; align-items: center; }
+  .mday span { font-size: 14px; }
+  /* flex-basis 를 0 으로 둬야 남은 자리에 맞게 줄어듭니다.
+     auto 로 두면 textarea 의 기본 폭 때문에 아랫줄로 밀려납니다. */
+  .mmenu { flex: 1 1 0; min-width: 0; min-height: 40px; }
+  .mnote { flex: 1 1 100%; margin-left: 41px; }   /* 요일칸(34) + 사이(7) 만큼 들여서 메뉴와 맞춥니다 */
+}
+
+/* 인쇄할 때는 화면용 식단 칸을 숨깁니다 (종이 양식은 따로 그립니다) */
+@media print { .meal { display: none !important; } }

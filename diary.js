@@ -44,11 +44,13 @@ async function dfetch(url, opts = {}, retried = false) {
 const dJson = async (u, o) => (await dfetch(u, o)).json();
 
 /** 드라이브에 파일을 올리거나 덮어씁니다. id 를 주면 덮어쓰기입니다. */
-async function driveUpload({ id, name, mime, body, appProperties }) {
+async function driveUpload({ id, name, mime, body, appProperties, parent }) {
   const meta = {};
   if (name) meta.name = name;
   if (appProperties) meta.appProperties = appProperties;
-  if (!id && dFolderId) meta.parents = [dFolderId];
+  // parent 를 주면 그 폴더에, 없으면 육아일기 폴더에 넣습니다 (식단도 이 함수를 씁니다)
+  const into = parent || dFolderId;
+  if (!id && into) meta.parents = [into];
 
   const bd = '----planner' + Math.random().toString(36).slice(2);
   const blob = new Blob([

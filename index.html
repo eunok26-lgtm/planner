@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" href="icons/icon-192.png">
-<link rel="stylesheet" href="app.css?v=68">
+<link rel="stylesheet" href="app.css?v=69">
 <style id="pagerule">@page { size: 297mm 210mm; margin: 0; }</style>
 </head>
 <body>
@@ -70,6 +70,12 @@
       <div class="daychips" id="week-chips"></div>
       <div class="catlegend" id="cat-legend"></div>
       <div class="week-wrap"><div class="week-grid" id="week-grid"></div></div>
+
+      <!-- 이번 주 식단 (⋯ → 설정 에서 켜고 끕니다) -->
+      <section class="meal" id="meal" hidden>
+        <h2 class="meal-h">이번 주 식단</h2>
+        <div class="meal-wrap"><div class="meal-grid" id="meal-grid"></div></div>
+      </section>
     </section>
 
     <!-- 오늘 할 일 -->
@@ -272,6 +278,7 @@
 <!-- ============ 더보기 메뉴 ============ -->
 <div id="menu" class="sheet-back" hidden>
   <div class="sheet-card" role="dialog" aria-modal="true">
+    <button class="menu-item" id="mi-settings">설정</button>
     <button class="menu-item" id="mi-cals">표시할 캘린더</button>
     <button class="menu-item" id="mi-repeat">반복 일정 관리</button>
     <button class="menu-item" id="mi-migrate">예전 위클리 일정 옮기기</button>
@@ -293,6 +300,22 @@
     </div>
     <p class="fld-note" id="ow-sum"></p>
     <div id="ow-list" class="ow-list"></div>
+  </div>
+</div>
+
+<!-- ============ 설정 ============ -->
+<div id="setsheet" class="sheet-back" hidden>
+  <div class="sheet-card" role="dialog" aria-modal="true">
+    <div class="sheet-head">
+      <button class="mini ghost" id="st-close">닫기</button>
+      <strong>설정</strong>
+      <span style="width:44px"></span>
+    </div>
+    <label class="calrow">
+      <input id="st-meal" type="checkbox">
+      <span class="calname">위클리에 <b>주간 식단</b> 보이기
+        <em>요일마다 메뉴와 메모를 적습니다</em></span>
+    </label>
   </div>
 </div>
 
@@ -392,10 +415,11 @@
 <div id="toast" class="toast" hidden></div>
 
 <script src="https://accounts.google.com/gsi/client" async defer></script>
-<script src="config.js?v=68"></script>
-<script src="korean-calendar.js?v=68"></script>
-<script src="lunar.js?v=68"></script>
-<script src="diary.js?v=68"></script>
-<script src="app.js?v=68"></script>
+<script src="config.js?v=69"></script>
+<script src="korean-calendar.js?v=69"></script>
+<script src="lunar.js?v=69"></script>
+<script src="diary.js?v=69"></script>
+<script src="meal.js?v=69"></script>
+<script src="app.js?v=69"></script>
 </body>
 </html>
