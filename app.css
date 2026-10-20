@@ -1114,3 +1114,69 @@ input:disabled::-webkit-calendar-picker-indicator { opacity: .35; cursor: defaul
   font-size: 8px; letter-spacing: -.04em;
   background: linear-gradient(135deg, var(--src-m) 50%, var(--src-w) 50%);
 }
+
+/* ============================================================
+   아이 일정 — 습관 앱의 '내 일정' 과 같은 자료를 같은 모양으로
+   ============================================================ */
+.kid-warn {
+  background: var(--today); color: var(--ink-2); font-size: 12px; line-height: 1.55;
+  padding: 11px 13px; border-radius: 10px; margin-bottom: 4px;
+}
+
+/* 🔔 하교 시각 */
+.kid-bell {
+  background: var(--card); box-shadow: var(--shadow); border-radius: var(--r);
+  padding: 16px 18px; text-align: center;
+}
+.kid-bell .kb-lbl { font-size: 12px; color: var(--mute); font-weight: 700; }
+.kid-bell .kb-val { font-size: 22px; font-weight: 800; letter-spacing: -.02em; margin-top: 4px; }
+
+/* 📌 오늘 일정 */
+.kid-card {
+  background: var(--card); box-shadow: var(--shadow); border-radius: var(--r);
+  overflow: hidden;
+}
+.kev {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 14px; border-bottom: 1px solid var(--line);
+}
+.kev:last-child { border-bottom: none; }
+.kev-t { flex: 0 0 auto; font-size: 12px; font-weight: 800; color: var(--accent);
+         font-variant-numeric: tabular-nums; min-width: 62px; }
+.kev-i { flex: 0 0 auto; font-size: 20px; }
+.kev-x { flex: 1; min-width: 0; font-size: 15px; font-weight: 600;
+         overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kev-tag {
+  font-style: normal; font-size: 10px; font-weight: 800; margin-left: 7px;
+  background: var(--accent); color: var(--paper); border-radius: 999px; padding: 2px 7px;
+}
+.kev.next { background: var(--today); }
+.kev.past { opacity: .45; }
+.kid-none { padding: 26px 14px; text-align: center; color: var(--mute); font-size: 14px; line-height: 1.7; }
+.kid-none b { display: block; font-size: 30px; margin-bottom: 6px; }
+
+/* 📅 이번 주 */
+.kid-week { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+.kd {
+  background: var(--card); box-shadow: var(--shadow); border-radius: 10px;
+  padding: 9px 10px 10px; min-width: 0;
+}
+.kd.today { box-shadow: inset 0 0 0 2px var(--accent), var(--shadow); }
+.kd.wknd .kd-n { color: var(--hol); }
+.kd-h { display: flex; align-items: baseline; gap: 5px; flex-wrap: wrap;
+        padding-bottom: 6px; border-bottom: 1px solid var(--line); margin-bottom: 6px; }
+.kd-n { font-size: 12px; font-weight: 800; }
+.kd-d { font-size: 10px; color: var(--mute); }
+.kd-b { font-size: 10px; color: var(--accent); font-weight: 700; margin-left: auto; white-space: nowrap; }
+.kd-e { display: flex; gap: 6px; align-items: baseline; padding: 3px 0; min-width: 0; }
+.kd-t { flex: 0 0 auto; font-size: 10px; color: var(--mute); font-variant-numeric: tabular-nums; }
+.kd-x { flex: 1; min-width: 0; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kd-0 { font-size: 11px; color: var(--mute); padding: 3px 0; }
+
+@media (max-width: 600px) {
+  /* 탭이 여섯 개라 글자를 한 번 더 줄입니다 */
+  .tab { font-size: 10px; }
+  .kid-week { grid-template-columns: 1fr; }
+  .kd-x { white-space: normal; }
+  .kid-bell .kb-val { font-size: 19px; }
+}

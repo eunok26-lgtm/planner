@@ -2305,13 +2305,14 @@ function renderAll() {
   else if (state.view === 'week') renderWeek();
   else if (state.view === 'today') renderToday();
   else if (state.view === 'diary') renderDiary();
+  else if (state.view === 'kid') renderKid();
   else renderShop();
 }
 
 function showView(v) {
   state.view = v;
   $$('.tab').forEach(t => t.classList.toggle('is-on', t.dataset.view === v));
-  ['month', 'week', 'today', 'shop', 'diary'].forEach(k => { $('#view-' + k).hidden = (k !== v); });
+  ['month', 'week', 'today', 'shop', 'diary', 'kid'].forEach(k => { $('#view-' + k).hidden = (k !== v); });
   $('#print-btn').hidden = (v !== 'week');
   $('#save-btn').hidden = (v !== 'diary');
   $('#title-btn').disabled = !(v === 'month' || v === 'week');   // 날짜 화면에서만 누를 수 있게
@@ -2341,6 +2342,14 @@ function syncCurrentView() {
     } else if (state.view === 'today') {
       await loadMonth(new Date());
       await loadTasks();
+    } else if (state.view === 'kid') {
+      // 아이 일정은 오늘과 이번 주를 봅니다 (주가 달을 걸치면 그 달도 함께)
+      const now = new Date();
+      await loadMonth(now);
+      const mon = startOfWeek(now, CFG.WEEK_START), sun = addDays(mon, 6);
+      if (mon.getMonth() !== now.getMonth()) await loadMonth(mon);
+      if (sun.getMonth() !== now.getMonth()) await loadMonth(sun);
+      await applySeriesPins();
     } else {
       await loadTasks();
     }
@@ -2521,6 +2530,7 @@ function wire() {
   });
   wireDiary();
   wireMeal();
+  wireKid();
 
   REP_OPTIONS = $('#ev-rep').innerHTML;   // 원본 선택지 보관
   buildDayPicker();
@@ -2956,7 +2966,7 @@ async function start() {
 
 /* 요청하는 권한이 바뀌면 예전 로그인으로는 안 되므로 다시 동의를 받습니다.
    (위클리 캘린더를 만들려면 캘린더 관리 권한이 새로 필요해졌습니다) */
-const APP_VERSION = '73';
+const APP_VERSION = '74';
 const SCOPE_VERSION = '3';
 
 async function boot() {

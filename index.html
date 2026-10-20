@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" href="icons/icon-192.png">
-<link rel="stylesheet" href="app.css?v=73">
+<link rel="stylesheet" href="app.css?v=74">
 <style id="pagerule">@page { size: 297mm 210mm; margin: 0; }</style>
 </head>
 <body>
@@ -87,6 +87,20 @@
       <div id="todo-list" class="task-list"></div>
     </section>
 
+    <!-- 아이 일정 (습관 앱의 '내 일정' 과 같은 자료) -->
+    <section class="view pane" id="view-kid" hidden>
+      <p id="kid-warn" class="kid-warn" hidden></p>
+
+      <h2 class="pane-h">🔔 하교 시각</h2>
+      <div class="kid-bell" id="kid-bell"></div>
+
+      <h2 class="pane-h">📌 오늘 일정</h2>
+      <div class="kid-card" id="kid-today"></div>
+
+      <h2 class="pane-h">📅 이번 주</h2>
+      <div class="kid-week" id="kid-week"></div>
+    </section>
+
     <!-- 육아일기 -->
     <section class="view" id="view-diary" hidden>
       <div class="diary">
@@ -146,6 +160,7 @@
     <button class="tab" data-view="today"><span>오늘</span></button>
     <button class="tab" data-view="shop"><span>쇼핑</span></button>
     <button class="tab" data-view="diary"><span>육아일기</span></button>
+    <button class="tab" data-view="kid"><span>아이일정</span></button>
   </nav>
 </div>
 
@@ -418,11 +433,12 @@
 <div id="toast" class="toast" hidden></div>
 
 <script src="https://accounts.google.com/gsi/client" async defer></script>
-<script src="config.js?v=73"></script>
-<script src="korean-calendar.js?v=73"></script>
-<script src="lunar.js?v=73"></script>
-<script src="diary.js?v=73"></script>
-<script src="meal.js?v=73"></script>
-<script src="app.js?v=73"></script>
+<script src="config.js?v=74"></script>
+<script src="korean-calendar.js?v=74"></script>
+<script src="lunar.js?v=74"></script>
+<script src="diary.js?v=74"></script>
+<script src="meal.js?v=74"></script>
+<script src="kid.js?v=74"></script>
+<script src="app.js?v=74"></script>
 </body>
 </html>
