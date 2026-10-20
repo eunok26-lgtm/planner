@@ -67,6 +67,26 @@ async function mealPut(mon, data) {
 
 /* ---------- 화면 ---------- */
 
+/** 적은 내용만큼 칸을 늘립니다 (스크롤 없이 한눈에 보이도록).
+    최소 높이는 CSS 가 잡아주므로 여기서는 늘리기만 합니다. */
+function mealGrow(el) {
+  if (!el) return;
+  el.style.height = 'auto';
+  // scrollHeight 에는 테두리가 안 들어갑니다. 그만큼 더해야 딱 맞아 스크롤이 안 생깁니다.
+  const border = el.offsetHeight - el.clientHeight;
+  el.style.height = (el.scrollHeight + border) + 'px';
+}
+
+/** 화면에 있는 식단 칸 전부를 내용에 맞춥니다.
+    숨어 있을 때는 높이를 0 으로 읽으므로 보일 때까지 기다렸다 맞춥니다. */
+function mealGrowAll() {
+  const box = $('#meal');
+  if (!box || box.hidden) return;
+  const run = () => $$('#meal-grid textarea').forEach(mealGrow);
+  run();                                  // 그리자마자 한 번
+  requestAnimationFrame(run);             // 글꼴이 늦게 올라오는 경우를 위해 한 번 더
+}
+
 /** 그 주의 식단 칸을 그립니다. 위클리를 그릴 때마다 불립니다. */
 function renderMeal(mon) {
   const box = $('#meal');
@@ -91,10 +111,11 @@ function renderMeal(mon) {
         <div class="mday"><b>${DOW_KR[d.getDay()]}</b><span>${d.getDate()}</span></div>
         <textarea class="mmenu" data-date="${ds}" rows="2"
                   placeholder="메뉴">${esc(v.menu || '')}</textarea>
-        <input class="mnote" data-date="${ds}" type="text"
-               placeholder="메모" value="${esc(v.note || '')}">
+        <textarea class="mnote" data-date="${ds}" rows="2"
+                  placeholder="메모">${esc(v.note || '')}</textarea>
       </div>`;
   }).join('');
+  mealGrowAll();
 
   if (fresh) {
     guard(async () => {
@@ -162,8 +183,12 @@ function wireMeal() {
     const el = e.target;
     if (el.classList.contains('mmenu')) mealEdit(el.dataset.date, 'menu', el.value);
     else if (el.classList.contains('mnote')) mealEdit(el.dataset.date, 'note', el.value);
+    else return;
+    mealGrow(el);                     // 적는 대로 칸이 늘어납니다
   });
   $('#meal-grid').addEventListener('focusout', mealFlush);
+  // 창 크기가 바뀌면 글이 다시 접히므로 높이를 다시 맞춥니다
+  window.addEventListener('resize', () => { if (state.view === 'week') mealGrowAll(); });
   window.addEventListener('beforeunload', () => { if (mealTimer) mealSave(); });
 
   /* 설정 — 보일지 말지 */

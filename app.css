@@ -1077,13 +1077,15 @@ input:disabled::-webkit-calendar-picker-indicator { opacity: .35; cursor: defaul
 .mcol.sun .mday b, .mcol.sun .mday span, .mcol.hol .mday b, .mcol.hol .mday span { color: var(--hol); }
 .mcol.sat .mday b, .mcol.sat .mday span { color: var(--sat); }
 
+/* 적은 내용만큼 칸이 늘어납니다 (높이는 meal.js 가 내용에 맞춰 잡아줍니다).
+   overflow:hidden 이어야 늘어나는 동안 스크롤바가 생기지 않습니다. */
 .mmenu, .mnote {
   width: 100%; border: 1px solid var(--line); border-radius: 7px;
-  background: var(--card); color: var(--ink); padding: 6px 7px;
-  font-size: 12px; line-height: 1.45; resize: none;
+  background: var(--card); color: var(--ink); padding: 7px 8px;
+  font-size: 12px; line-height: 1.5; resize: none; overflow: hidden;
 }
-.mmenu { min-height: 46px; }
-.mnote { font-size: 11px; color: var(--ink-2); }
+.mmenu { min-height: 58px; }
+.mnote { min-height: 46px; font-size: 11px; color: var(--ink-2); }
 .mmenu::placeholder, .mnote::placeholder { color: var(--mute); }
 .mmenu:focus, .mnote:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: transparent; }
 
@@ -1102,8 +1104,8 @@ input:disabled::-webkit-calendar-picker-indicator { opacity: .35; cursor: defaul
   .mday span { font-size: 14px; }
   /* flex-basis 를 0 으로 둬야 남은 자리에 맞게 줄어듭니다.
      auto 로 두면 textarea 의 기본 폭 때문에 아랫줄로 밀려납니다. */
-  .mmenu { flex: 1 1 0; min-width: 0; min-height: 40px; }
-  .mnote { flex: 1 1 100%; margin-left: 41px; }   /* 요일칸(34) + 사이(7) 만큼 들여서 메뉴와 맞춥니다 */
+  .mmenu { flex: 1 1 0; min-width: 0; min-height: 52px; }
+  .mnote { flex: 1 1 100%; margin-left: 41px; min-height: 44px; }   /* 요일칸(34) + 사이(7) 만큼 들여서 메뉴와 맞춥니다 */
 }
 
 /* 인쇄할 때는 화면용 식단 칸을 숨깁니다 (종이 양식은 따로 그립니다) */
