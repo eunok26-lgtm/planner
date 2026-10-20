@@ -567,6 +567,22 @@ async function updateEvent(id, f, cal, ev) {
 const seriesPin = new Map();      // seriesId → true/false
 
 /** 반복 원본에 고정 여부를 기록합니다 (다른 부가정보는 그대로 둡니다). */
+/** 반복 원본의 '맨 위 고정' 을 읽어와 열려 있는 편집창에 반영합니다.
+    (회차에는 그 표시가 없어 원본을 봐야 정확합니다) */
+async function loadSeriesPin(ev) {
+  const mine = ev.id;
+  try {
+    const m = await api(`${calBase(ev.cal || CAL_M)}/${encodeURIComponent(ev.seriesId)}`);
+    const on = m.extendedProperties?.private?.plannerPin === '1';
+    seriesPin.set(ev.seriesId, on);
+    // 그 사이 창을 닫았거나 다른 일정을 열었으면 건드리지 않습니다
+    if (editing && editing.id === mine && !$('#sheet').hidden) {
+      $('#ev-pin').checked = on;
+      editPin0 = on;
+    }
+  } catch (e) { /* 못 읽으면 지금 값을 그대로 둡니다 */ }
+}
+
 async function setSeriesPin(seriesId, cal, pin) {
   const m = await api(`${calBase(cal || CAL_M)}/${encodeURIComponent(seriesId)}`);
   const priv = { ...(m.extendedProperties?.private || {}) };
@@ -635,6 +651,13 @@ async function updateSeriesAfter(seriesId, fromDate, f, ev) {
   const cal = ev.cal || CAL_M;
   const master = await api(`${calBase(cal)}/${encodeURIComponent(seriesId)}`);
 
+  /* 반복을 나누면 뒤쪽은 '새 일정' 으로 다시 만들어집니다.
+     이때 맨 위 고정은 원본에 적힌 값을 그대로 물려받아야 합니다.
+     회차에는 그 표시가 없어서, 편집창에서 읽은 값만 믿으면 고정이 풀려 버립니다.
+     (고정을 사용자가 직접 바꿨다면 이 함수가 불리기 전에 원본에 이미 기록됩니다) */
+  const keepPin = master.extendedProperties?.private?.plannerPin === '1';
+  const withPin = { ...f, src: ev.src, pin: keepPin };
+
   /* 음력 일정처럼 날짜 목록으로 반복하는 경우.
      예전에는 규칙이 없으면 '매주'로 치고 새로 만들어서,
      음력 생일이 매주 반복 일정으로 바뀌어 버렸습니다. */
@@ -648,7 +671,7 @@ async function updateSeriesAfter(seriesId, fromDate, f, ev) {
     const body = eventBody({ ...f, date: rest[0] || fromDate });
     const tail = rest.slice(1);
     if (tail.length) body.recurrence = [rdateLine(tail)];
-    body.extendedProperties = { private: privateProps(ev, { ...f, src: ev.src }) };
+    body.extendedProperties = { private: privateProps(ev, withPin) };
     await api(calBase(cal), { method: 'POST', body: JSON.stringify(body) });
 
     store.loadedMonths.clear();
@@ -671,7 +694,7 @@ async function updateSeriesAfter(seriesId, fromDate, f, ev) {
   const body = eventBody(f);
   body.recurrence = [newRule];
   // 반복을 나눌 때도 출처·고정 표시를 새 반복에 그대로 물려줍니다
-  body.extendedProperties = { private: privateProps(ev, { ...f, src: ev.src }) };
+  body.extendedProperties = { private: privateProps(ev, withPin) };
   await api(calBase(cal), { method: 'POST', body: JSON.stringify(body) });
 
   store.loadedMonths.clear();
@@ -1443,6 +1466,11 @@ function openSheet(dateStr, id, src) {
   const pin0 = ev ? (ev.seriesId && seriesPin.has(ev.seriesId) ? seriesPin.get(ev.seriesId) : !!ev.pin) : false;
   $('#ev-pin').checked = pin0;
   editPin0 = pin0;
+  /* 반복 '회차' 에는 맨 위 고정 표시가 실려오지 않습니다.
+     아직 원본을 읽지 않았다면 지금 읽어와 체크 상태를 바로잡습니다.
+     이게 없으면 고정된 일정인데도 꺼진 채로 보이고,
+     그대로 저장하면 고정이 풀린 것으로 처리될 수 있습니다. */
+  if (ev && ev.seriesId && !seriesPin.has(ev.seriesId)) loadSeriesPin(ev);
 
   setColorPick(ev ? ev.color : '');
   $('#ev-allday').checked = ev ? ev.allDay : true;
@@ -2928,7 +2956,7 @@ async function start() {
 
 /* 요청하는 권한이 바뀌면 예전 로그인으로는 안 되므로 다시 동의를 받습니다.
    (위클리 캘린더를 만들려면 캘린더 관리 권한이 새로 필요해졌습니다) */
-const APP_VERSION = '72';
+const APP_VERSION = '73';
 const SCOPE_VERSION = '3';
 
 async function boot() {
