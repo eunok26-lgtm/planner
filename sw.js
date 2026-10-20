@@ -4,7 +4,7 @@
    앱이 localStorage 에 넣어둔 마지막 상태를 보여줍니다.
    ============================================================ */
 
-const CACHE = 'planner-v70';
+const CACHE = 'planner-v71';
 const SHELL = [
   './',
   './index.html',

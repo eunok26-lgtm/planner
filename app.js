@@ -1403,8 +1403,12 @@ function openSheet(dateStr, id, src) {
       (ev && !known ? '<option value="__none__">(분류 없음)</option>' : '')
       + opts + '<option value="__new__">+ 새 분류 만들기…</option>';
     $('#ev-cat').value = known ? ev.cal : (ev ? '__none__' : defaultWCal());
-    // 반복 일정 중 하나는 분류를 옮길 수 없습니다 (구글이 회차 단위 이동을 막습니다)
-    $('#ev-cat').disabled = !!(ev && ev.seriesId);
+    /* 반복 일정도 분류를 바꿀 수 있습니다.
+       다만 구글은 회차 하나만 옮기는 것을 막으므로 반복 전체가 함께 옮겨집니다. */
+    $('#ev-cat').disabled = false;
+    const catNote = $('#ev-cat-note');
+    catNote.hidden = !(ev && ev.seriesId);
+    catNote.textContent = '분류를 바꾸면 반복 전체가 함께 옮겨집니다.';
   }
 
   /* 음력 — 새 일정에서만 정할 수 있고, 이미 만든 것은 무엇이었는지 보여만 줍니다 */
@@ -1746,7 +1750,20 @@ async function saveSheet() {
   }
   closeSheet();
 
+  /* 반복 일정의 분류 변경은 회차 단위로 못 하고 원본째 옮겨집니다.
+     아직 분류되지 않은 일정은 기본 캘린더에 들어 있으므로 거기서 옮깁니다. */
+  const srcCal = ev ? (ev.cal || CAL_M) : null;
+  const movedSeries = !!(inSeries && f.cal && f.cal !== srcCal
+                         && f.cal !== '__none__' && f.cal !== '__new__');
+
   await guard(async () => {
+    /* 분류를 바꿨으면 반복 원본을 먼저 옮깁니다.
+       뒤따르는 수정들이 모두 새 캘린더를 보도록 ev.cal 도 함께 바꿔 둡니다. */
+    if (movedSeries) {
+      await moveEventToCal(ev.seriesId, srcCal, f.cal);
+      ev.cal = f.cal;
+      store.loadedMonths.clear();
+    }
     // 반복 종료일은 반복 전체에 걸리는 설정이라 범위 선택과 무관하게 먼저 적용합니다
     if (inSeries && $('#ev-seriesuntil').value !== seriesUntil0) {
       await setSeriesUntil(ev.seriesId, ev.cal, $('#ev-seriesuntil').value);
@@ -1774,7 +1791,10 @@ async function saveSheet() {
     const msg = { one: '이 일정만 수정했습니다',
                   after: '이 일정 이후를 모두 수정했습니다',
                   all: '반복 전체를 수정했습니다' };
-    toast(!target ? '저장했습니다' : (inSeries ? msg[scope] : '수정했습니다'));
+    toast(!target ? '저장했습니다'
+        : movedSeries ? (scope === 'all' ? '반복 전체를 옮기고 수정했습니다'
+                                         : `분류는 반복 전체가 옮겨졌고, ${msg[scope]}`)
+        : (inSeries ? msg[scope] : '수정했습니다'));
   }, '저장 중…');
 }
 
