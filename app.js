@@ -1390,10 +1390,12 @@ function openSheet(dateStr, id, src) {
   $('#ev-date').value    = ev ? ev.sd : dateStr;
   $('#ev-enddate').value = ev ? ev.ed : dateStr;
   editNote = ev ? (ev.note || '') : '';
-  // 분류 — 위클리 일정에만 씁니다
+  /* 분류 — 위클리에서 열었거나, 이미 분류 캘린더에 들어 있는 일정이면 보여줍니다.
+     월간에서 연 '양쪽 표시' 일정도 여기서 분류를 확인하고 바꿀 수 있어야 합니다. */
   const isW = (sheetSrc === 'w');
-  $('#ev-cat-wrap').hidden = !isW;
-  if (isW) {
+  const showCat = isW || !!(ev && isWeeklyCal(ev.cal));
+  $('#ev-cat-wrap').hidden = !showCat;
+  if (showCat) {
     // 아직 분류되지 않은 일정(기본 캘린더에 남아 있는 옛날 것)은
     // 있는 그대로 '(분류 없음)' 으로 보여줍니다.
     // 예전에는 기본 분류를 대신 골라 보여줘서, 점 색깔과 어긋나 보였습니다.
@@ -1698,8 +1700,9 @@ async function saveSheet() {
     color: $('#ev-color .sw.on')?.dataset.c || '',
     both: $('#ev-both').checked,
     pin: (sheetSrc === 'w' || $('#ev-both').checked) && $('#ev-pin').checked,
-    cal: (sheetSrc === 'w' && !$('#ev-cat').disabled
-          && $('#ev-cat').value !== '__none__') ? $('#ev-cat').value : null,
+    // 분류 칸이 보이는 상태면 거기서 고른 값을 씁니다 (월간에서 연 분류 일정 포함)
+    cal: (!$('#ev-cat-wrap').hidden && $('#ev-cat').value !== '__none__')
+         ? $('#ev-cat').value : null,
     rep:        $('#ev-rep').value,
     repDays:    $$('#rep-days .dowbtn.on').map(b => b.dataset.d),
     repEnd:     $('#ev-repend').value,
@@ -2925,7 +2928,7 @@ async function start() {
 
 /* 요청하는 권한이 바뀌면 예전 로그인으로는 안 되므로 다시 동의를 받습니다.
    (위클리 캘린더를 만들려면 캘린더 관리 권한이 새로 필요해졌습니다) */
-const APP_VERSION = '70';
+const APP_VERSION = '72';
 const SCOPE_VERSION = '3';
 
 async function boot() {
