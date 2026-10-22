@@ -344,10 +344,6 @@ button { cursor: pointer; border: none; background: none; }
 .chip-d.on .cdot { background: var(--paper); }
 
 /* ---------------- 오늘 ---------------- */
-.today-head { padding: 6px 0 2px; }
-.today-head .big { font-size: 30px; font-weight: 800; letter-spacing: -.03em; }
-.today-head .sm  { font-size: 13px; color: var(--ink-2); }
-.today-head.hol .big { color: var(--hol); }
 
 .ev-list { display: flex; flex-direction: column; gap: 6px; }
 .ev {

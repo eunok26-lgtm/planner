@@ -1323,34 +1323,12 @@ function renderWeek() {
 /* ============================================================
    7. 오늘
    ============================================================ */
+/* 할 일 화면. 일정은 월간·위클리·아이일정에서 보므로 여기서는 할 일만 다룹니다. */
 function renderToday() {
   const d = new Date();
-  const ds = ymd(d);
-  const hol = holidayOf(d), term = termOf(d);
-  $('#title').textContent = '오늘';
-  $('#subtitle').textContent = '';
-
-  $('#today-head').className = 'today-head ' + (hol ? 'hol' : '');
-  $('#today-head').innerHTML =
-    `<div class="big">${d.getMonth() + 1}월 ${d.getDate()}일 (${DOW_KR[d.getDay()]})</div>
-     <div class="sm">${esc(hol || term || '')}</div>`;
-
-  // 오늘 화면은 월간·위클리 것을 모두 보여주되, 앞에 M / W 로 출처를 표시합니다
-  const evs = eventsOn(ds);
-  $('#today-events').innerHTML = evs.length
-    ? evs.map(e => {
-        const w = e.src === 'w', both = e.src === 'b';
-        const badge = e.excolor
-          ? `<span class="src ex" style="background:${e.excolor}" title="${esc(e.exname)} 캘린더"></span>`
-          : both
-            ? '<span class="src mw" title="월간·위클리에 함께 표시">MW</span>'
-            : `<span class="src ${w ? 'w' : 'm'}" title="${w ? '위클리에서 추가' : '월간에서 추가'}">${w ? 'W' : 'M'}</span>`;
-        return `<button class="ev${colorCls(e)}" data-id="${e.id}" data-date="${ds}">
-         ${badge}
-         <span class="t">${e.allDay ? '종일' : e.time}</span>
-         <span class="x">${esc(e.text)}</span></button>`;
-      }).join('')
-    : '<div class="empty-note">오늘 등록된 일정이 없습니다.</div>';
+  $('#title').textContent = '할 일';
+  $('#subtitle').textContent =
+    `${d.getMonth() + 1}월 ${d.getDate()}일 (${DOW_KR[d.getDay()]})`;
 
   const sorted = [...store.todo].sort((a, b) => a.done - b.done);
   $('#todo-list').innerHTML = sorted.length
@@ -2340,8 +2318,7 @@ function syncCurrentView() {
       await applySeriesPins();
       if (state.view === 'month') prefetchMonthSides();
     } else if (state.view === 'today') {
-      await loadMonth(new Date());
-      await loadTasks();
+      await loadTasks();          // 할 일만 다루므로 일정은 읽지 않습니다
     } else if (state.view === 'kid') {
       // 아이 일정은 오늘과 이번 주를 봅니다 (주가 달을 걸치면 그 달도 함께)
       const now = new Date();
@@ -2806,11 +2783,6 @@ function wire() {
     endAnchor: listEl => listEl.querySelector('.wline.empty')  // 빈 줄 위에 놓이도록
   });
 
-  /* 오늘 — 일정 클릭 */
-  $('#today-events').onclick = e => {
-    const b = e.target.closest('.ev');
-    if (b) openSheet(b.dataset.date, b.dataset.id);
-  };
 
   /* 할 일 · 쇼핑 공통 */
   function taskHandler(e) {
@@ -2966,7 +2938,7 @@ async function start() {
 
 /* 요청하는 권한이 바뀌면 예전 로그인으로는 안 되므로 다시 동의를 받습니다.
    (위클리 캘린더를 만들려면 캘린더 관리 권한이 새로 필요해졌습니다) */
-const APP_VERSION = '76';
+const APP_VERSION = '77';
 const SCOPE_VERSION = '3';
 
 async function boot() {
