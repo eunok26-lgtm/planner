@@ -2282,7 +2282,6 @@ function renderAll() {
   if (state.view === 'month') renderMonth();
   else if (state.view === 'week') renderWeek();
   else if (state.view === 'today') renderToday();
-  else if (state.view === 'diary') renderDiary();
   else if (state.view === 'kid') renderKid();
   else renderShop();
 }
@@ -2290,18 +2289,16 @@ function renderAll() {
 function showView(v) {
   state.view = v;
   $$('.tab').forEach(t => t.classList.toggle('is-on', t.dataset.view === v));
-  ['month', 'week', 'today', 'shop', 'diary', 'kid'].forEach(k => { $('#view-' + k).hidden = (k !== v); });
+  ['month', 'week', 'today', 'shop', 'kid'].forEach(k => { $('#view-' + k).hidden = (k !== v); });
   $('#print-btn').hidden = (v !== 'week');
-  $('#save-btn').hidden = (v !== 'diary');
   $('#title-btn').disabled = !(v === 'month' || v === 'week');   // 날짜 화면에서만 누를 수 있게
-  const paged = (v === 'month' || v === 'week' || v === 'diary');
+  const paged = (v === 'month' || v === 'week');
   $('#prev').style.visibility = $('#next').style.visibility = paged ? 'visible' : 'hidden';
   $('#today-btn').style.visibility = paged ? 'visible' : 'hidden';
   renderAll();
   // 화면에 실제로 그려진 뒤 높이를 다시 재서 줄 수를 맞춥니다
   if (v === 'month') requestAnimationFrame(() => renderMonth());
   if (v === 'week') { weekScrollToday = true; renderWeek(); }
-  if (v === 'diary') { enterDiary(); return; }     // 일기는 스스로 불러옵니다
   syncCurrentView();
 }
 
@@ -2335,7 +2332,6 @@ function syncCurrentView() {
 }
 
 function shift(dir) {
-  if (state.view === 'diary') return shiftDiary(dir);
   if (state.view === 'month') {
     state.anchor = new Date(state.anchor.getFullYear(), state.anchor.getMonth() + dir, 1);
   } else if (state.view === 'week') {
@@ -2472,7 +2468,6 @@ function wire() {
     jumpTo(n.getFullYear(), n.getMonth());
   };
   $('#today-btn').onclick = () => {
-    if (state.view === 'diary') return openDiary(ymd(new Date()));
     state.anchor = new Date(); renderAll(); syncCurrentView();
   };
   $('#print-btn').onclick = () => {
@@ -2501,11 +2496,9 @@ function wire() {
     }, '인쇄 준비 중…');
   };
   $$('.tab').forEach(t => t.onclick = () => {
-    if (state.view === 'diary' && t.dataset.view !== 'diary') dSaveFlush();
     if (state.view === 'week'  && t.dataset.view !== 'week')  mealFlush();
     showView(t.dataset.view);
   });
-  wireDiary();
   wireMeal();
   wireKid();
 
@@ -2938,7 +2931,7 @@ async function start() {
 
 /* 요청하는 권한이 바뀌면 예전 로그인으로는 안 되므로 다시 동의를 받습니다.
    (위클리 캘린더를 만들려면 캘린더 관리 권한이 새로 필요해졌습니다) */
-const APP_VERSION = '77';
+const APP_VERSION = '78';
 const SCOPE_VERSION = '3';
 
 async function boot() {
