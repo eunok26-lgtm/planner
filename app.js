@@ -313,13 +313,21 @@ function normalizeEvent(g, calId) {
                   text: g.summary || '(제목 없음)', note: g.description || '' });
     }
   } else {
+    /* 시간이 정해진 일정도 여러 날에 걸칠 수 있습니다 (23일 오후 2시 ~ 24일 오후 4시).
+       예전에는 시작일 하루만 넣어서 월간에 하루짜리로 보였습니다. */
     const s = new Date(g.start.dateTime);
-    const ds = ymd(s);
-    rows.push({ ...meta, id: g.id, date: ds, allDay: false,
-                sd: ds, ed: ds, multi: false, days: 1,
-                time: pad2(s.getHours()) + ':' + pad2(s.getMinutes()),
-                text: g.summary || '(제목 없음)', note: g.description || '',
-                startISO: g.start.dateTime, endISO: g.end?.dateTime });
+    const e = g.end?.dateTime ? new Date(g.end.dateTime) : new Date(s.getTime() + 3600000);
+    const sd = ymd(s);
+    // 끝나는 순간이 자정이면 그 날은 포함하지 않으므로 1밀리초 앞을 봅니다
+    const ed = ymd(new Date(Math.max(e.getTime() - 1, s.getTime())));
+    const span = { sd, ed, multi: ed > sd,
+                   days: Math.max(1, Math.round((parseYmd(ed) - parseYmd(sd)) / 86400000) + 1) };
+    const time = pad2(s.getHours()) + ':' + pad2(s.getMinutes());
+    for (let d = parseYmd(sd); ymd(d) <= ed; d = addDays(d, 1)) {
+      rows.push({ ...meta, ...span, id: g.id, date: ymd(d), allDay: false, time,
+                  text: g.summary || '(제목 없음)', note: g.description || '',
+                  startISO: g.start.dateTime, endISO: g.end?.dateTime });
+    }
   }
   return rows;
 }
@@ -512,9 +520,12 @@ function eventBody(f) {
     body.start = { date: f.date };
     body.end   = { date: ymd(addDays(parseYmd(f.date), Math.max(1, f.spanDays || 1))) };
   } else {
+    // 시간이 정해진 일정도 여러 날에 걸칠 수 있으므로 기간을 유지합니다
     const [h, m] = (f.time || '09:00').split(':').map(Number);
     const s = parseYmd(f.date); s.setHours(h, m, 0, 0);
-    const e = new Date(s.getTime() + 60 * 60 * 1000);
+    const e = addDays(s, Math.max(1, f.spanDays || 1) - 1);
+    e.setHours(h, m, 0, 0);
+    e.setTime(e.getTime() + 60 * 60 * 1000);
     body.start = { dateTime: s.toISOString() };
     body.end   = { dateTime: e.toISOString() };
   }
@@ -1664,11 +1675,12 @@ function syncDateFields() {
   $('#ev-date').closest('.fld').hidden = false;
   $('#ev-allday').closest('.chk').hidden = false;
   $('#ev-rep').closest('.fld').hidden = false;
-  $('#ev-end-wrap').hidden  = !allDay;
+  // 종료일은 시간이 정해진 일정에도 필요합니다 (23일 오후 2시 ~ 24일 처럼)
+  $('#ev-end-wrap').hidden  = false;
   $('#ev-time-wrap').hidden = allDay;
-  $('#ev-date-lbl').textContent = allDay ? '시작일' : '날짜';
+  $('#ev-date-lbl').textContent = '시작일';
   // 종료일이 시작일보다 앞서면 시작일에 맞춥니다
-  if (allDay && $('#ev-enddate').value < $('#ev-date').value) {
+  if ($('#ev-enddate').value < $('#ev-date').value) {
     $('#ev-enddate').value = $('#ev-date').value;
   }
 }
@@ -1721,8 +1733,8 @@ async function saveSheet() {
     luLeap:   $('#lu-leap').value === '1',
     luYearly: $('#lu-yearly').checked
   };
-  // 종일 일정은 시작일~종료일 사이 날 수를 기간으로 씁니다
-  if (f.allDay) {
+  // 시작일~종료일 사이 날 수를 기간으로 씁니다 (시간이 정해진 일정도 마찬가지)
+  {
     const endStr = $('#ev-enddate').value || f.date;
     const n = Math.round((parseYmd(endStr) - parseYmd(f.date)) / 86400000) + 1;
     f.spanDays = Math.max(1, n || 1);
@@ -2931,7 +2943,7 @@ async function start() {
 
 /* 요청하는 권한이 바뀌면 예전 로그인으로는 안 되므로 다시 동의를 받습니다.
    (위클리 캘린더를 만들려면 캘린더 관리 권한이 새로 필요해졌습니다) */
-const APP_VERSION = '78';
+const APP_VERSION = '79';
 const SCOPE_VERSION = '3';
 
 async function boot() {
