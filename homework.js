@@ -99,6 +99,63 @@ async function hwPutRepeat(data) {
 const hwRepeatFor = d =>
   [...((hwRepeat && hwRepeat.all) || []), ...((hwRepeat && hwRepeat[String(d.getDay())]) || [])];
 
+/* 틀에서 할 일이 담기는 칸들. stopped (그만둔 반복 id) 는 여기 들어가지 않습니다. */
+const HW_BUCKETS = ['all', '0', '1', '2', '3', '4', '5', '6'];
+const hwRepeatCount = r => !r ? 0 : HW_BUCKETS.reduce((n, k) => n + ((r[k] || []).length), 0);
+
+/** 기기에 있던 틀과 드라이브에서 받은 틀을 합칩니다.
+    드라이브 쪽을 기본으로 하되, 기기에만 있는 것은 살려 둡니다.
+    (저장이 한 번 실패해도 반복이 조용히 사라지지 않게 하려는 것입니다.
+     단, 다른 기기에서 '반복 그만하기' 한 것은 stopped 에 적혀 있으므로 되살리지 않습니다.) */
+function hwRepeatMerge(local, remote) {
+  const out = { ...(remote || {}) };
+  const stopped = new Set(out.stopped || []);
+  if (!local) return out;
+  for (const k of HW_BUCKETS) {
+    const mine = local[k] || [];
+    if (!mine.length) continue;
+    const have = out[k] = [...(out[k] || [])];
+    for (const r of mine) {
+      if (stopped.has(r.id)) continue;
+      if (!have.some(x => x.id === r.id)) have.push(r);
+    }
+  }
+  return out;
+}
+
+/** 틀을 잃어버렸을 때 그 주에 남아 있는 반복 항목으로 되살립니다.
+    (틀만 날아가고 그 주 복사본은 남는 경우가 있어서, 그때 반복이 이번 주에만 보입니다.)
+    되살린 게 있으면 true. 지난 주는 건드리지 않습니다. */
+function hwHealRepeat(mon) {
+  if (!hwData) return false;
+  const thisMon = ymd(startOfWeek(new Date(), CFG.WEEK_START));
+  if (mon < thisMon) return false;                    // 지난 주에서는 되살리지 않습니다
+
+  hwRepeat = hwRepeat || {};
+  const stopped = new Set(hwRepeat.stopped || []);
+  const known = new Set();
+  for (const k of HW_BUCKETS) for (const r of (hwRepeat[k] || [])) known.add(r.id);
+
+  const seen = new Map();                             // 잃어버린 반복 id → { text, days:Set(요일) }
+  for (let i = 0; i < 7; i++) {
+    const d = addDays(parseYmd(mon), i), ds = ymd(d);
+    for (const t of (hwData.days[ds] || [])) {
+      if (!t.rep || known.has(t.rep) || stopped.has(t.rep)) continue;
+      const e = seen.get(t.rep) || { text: t.text, days: new Set() };
+      e.days.add(d.getDay());
+      seen.set(t.rep, e);
+    }
+  }
+  if (!seen.size) return false;
+
+  for (const [rid, e] of seen) {
+    // 여러 요일에 흩어져 있으면 매일 반복이던 것입니다
+    const k = e.days.size > 1 ? 'all' : String([...e.days][0]);
+    (hwRepeat[k] = hwRepeat[k] || []).push({ id: rid, text: e.text });
+  }
+  return true;
+}
+
 /** 반복 목록에 있는데 그 주에 아직 없는 것을 채워 넣습니다. 채운 게 있으면 true */
 function hwMaterialize(mon) {
   if (!hwData || !hwRepeat) return false;
@@ -121,6 +178,24 @@ function hwMaterialize(mon) {
   return added;
 }
 
+/** 그만둔 반복이 이미 찍혀 있던 주에서도 빠지게 합니다.
+    앞으로의 주만 손봅니다 — 지난 주는 그때 한 기록이라 그대로 둡니다.
+    뺀 게 있으면 true */
+function hwStripStopped(mon) {
+  if (!hwData || !hwRepeat) return false;
+  const stopped = new Set(hwRepeat.stopped || []);
+  if (!stopped.size) return false;
+  if (mon < ymd(startOfWeek(new Date(), CFG.WEEK_START))) return false;
+
+  let cut = false;
+  for (const ds of Object.keys(hwData.days)) {
+    const list = hwData.days[ds] || [];
+    const kept = list.filter(t => !(t.rep && stopped.has(t.rep)));
+    if (kept.length !== list.length) { hwData.days[ds] = kept; cut = true; }
+  }
+  return cut;
+}
+
 /** 그 날에서 이 반복 항목을 빼 둡니다 (다시 열어도 되살아나지 않게) */
 function hwHide(ds, repId) {
   if (!repId) return;
@@ -132,7 +207,7 @@ function hwHide(ds, repId) {
 /** 반복 틀에서 그 id 가 어느 칸에 있는지 ('all' 또는 '0'~'6') */
 function hwRepeatBucket(repId) {
   if (!hwRepeat) return null;
-  for (const k of Object.keys(hwRepeat)) {
+  for (const k of HW_BUCKETS) {
     if ((hwRepeat[k] || []).some(x => x.id === repId)) return k;
   }
   return null;
@@ -155,7 +230,7 @@ function renderHw(mon) {
     hwData = c ? JSON.parse(c) : emptyHw();
     const r = localStorage.getItem('planner.hw.repeat');
     hwRepeat = r ? JSON.parse(r) : null;
-    if (hwRepeat) hwMaterialize(monStr);
+    if (hwRepeat) { hwStripStopped(monStr); hwMaterialize(monStr); }
   }
 
   const today = new Date();
@@ -181,12 +256,19 @@ function renderHw(mon) {
     guard(async () => {
       const [wk, rp] = await Promise.all([hwFetchWeek(monStr), hwFetchRepeat()]);
       if (hwWeek !== monStr) return;               // 그 사이 주를 옮겼으면 버립니다
-      hwData = wk; hwRepeat = rp;
-      localStorage.setItem('planner.hw.repeat', JSON.stringify(rp));
+      hwData = wk;
+      // 드라이브 쪽이 비어 있다고 기기에 있던 틀을 지우지 않습니다 (반복이 사라지는 일을 막습니다)
+      hwRepeat = hwRepeatMerge(hwRepeat, rp);
+      // 틀은 잃었는데 그 주에 반복 항목이 남아 있으면 틀을 되살립니다
+      const healed = hwHealRepeat(monStr);
+      const lost = healed || hwRepeatCount(hwRepeat) > hwRepeatCount(rp);
+      localStorage.setItem('planner.hw.repeat', JSON.stringify(hwRepeat));
+      const cut = hwStripStopped(monStr);          // 그만둔 반복이 남아 있으면 치웁니다
       const added = hwMaterialize(monStr);
       localStorage.setItem('planner.hw.w.' + monStr, JSON.stringify(hwData));
       if (state.view === 'week') renderHw(parseYmd(monStr));
-      if (added) hwTouch();                        // 새로 찍어낸 것을 저장해 둡니다
+      if (added || cut) hwTouch();                 // 새로 찍어낸 것 · 치운 것을 저장해 둡니다
+      if (lost) hwSaveRepeat();                    // 드라이브 쪽 틀을 다시 채워 둡니다
     }, '아이 할 일 불러오는 중…');
   }
 }
@@ -226,11 +308,28 @@ async function hwSave() {
   }
 }
 
+let hwRepTimer = 0;
+
+/** 반복 틀을 저장합니다.
+    기기에 먼저 적어 두고 올립니다 — 올리다 실패해도 반복이 사라지지 않게 하려는 것입니다.
+    실패하면 잠시 뒤 다시 시도합니다. */
 async function hwSaveRepeat() {
-  await guard(async () => {
-    await hwPutRepeat(hwRepeat || {});
-    localStorage.setItem('planner.hw.repeat', JSON.stringify(hwRepeat || {}));
-  }, '반복 저장 중…');
+  clearTimeout(hwRepTimer); hwRepTimer = 0;
+  const data = hwRepeat || {};
+  localStorage.setItem('planner.hw.repeat', JSON.stringify(data));
+  try {
+    await hwPutRepeat(data);
+  } catch (e) {
+    console.error(e);
+    if (e.message === 'drive_off') {
+      setSync('드라이브 설정 필요', 'err');
+      toast('구글 클라우드에서 Google Drive API 를 켜야 합니다 (설정가이드 참고)');
+      return;
+    }
+    setSync('반복 저장 실패', 'err');
+    toast('반복 설정을 저장하지 못했습니다. 잠시 뒤 다시 시도합니다');
+    hwRepTimer = setTimeout(hwSaveRepeat, 8000);
+  }
 }
 
 /* ---------- 넣고 고치기 ---------- */
@@ -318,6 +417,8 @@ async function deleteHwItem(ds, id) {
   hwData.days[ds] = list.filter(t => t.id !== id);
   if (alsoRepeat && hwRepeat && bucket) {
     hwRepeat[bucket] = (hwRepeat[bucket] || []).filter(x => x.id !== item.rep);
+    // 그만둔 것을 적어 둡니다 — 다른 기기에 남아 있던 틀 때문에 되살아나지 않게
+    hwRepeat.stopped = [...(hwRepeat.stopped || []), item.rep].slice(-200);
     await hwSaveRepeat();
     // 매일 반복이면 이번 주 다른 날에 들어와 있는 것도 함께 치웁니다
     if (bucket === 'all') {
