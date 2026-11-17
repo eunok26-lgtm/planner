@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" href="icons/icon-192.png">
-<link rel="stylesheet" href="app.css?v=80">
+<link rel="stylesheet" href="app.css?v=81">
 <style id="pagerule">@page { size: 297mm 210mm; margin: 0; }</style>
 </head>
 <body>
@@ -312,8 +312,9 @@
     <p class="fld-note" id="hw-when"></p>
     <label class="fld"><span>내용</span>
       <input id="hw-text" type="text" placeholder="예: 수학 익힘책 12쪽" autocomplete="off"></label>
-    <label class="chk"><input id="hw-rep" type="checkbox">
-      <span id="hw-rep-lbl">매주 이 요일마다 반복</span></label>
+    <label class="fld"><span>반복</span>
+      <select id="hw-rep-mode"></select></label>
+    <p class="fld-note" id="hw-rep-note" hidden></p>
     <button class="btn-danger" id="hw-del" hidden>이 할 일 지우기</button>
   </div>
 </div>
@@ -321,10 +322,10 @@
 <!-- ============ 아이 할 일 지우는 범위 ============ -->
 <div id="hwscope" class="sheet-back top" hidden>
   <div class="sheet-card" role="dialog" aria-modal="true">
-    <strong class="ask-h">매주 반복하는 할 일</strong>
+    <strong class="ask-h" id="hs-h">매주 반복하는 할 일</strong>
     <p class="ask-p">어디까지 지울까요?</p>
     <button class="menu-item" data-hs="one">이번 주만 지우기</button>
-    <button class="menu-item" data-hs="all">매주 반복 그만하기</button>
+    <button class="menu-item" data-hs="all" id="hs-all">매주 반복 그만하기</button>
     <button class="menu-item mute" data-hs="">취소</button>
   </div>
 </div>
@@ -410,13 +411,13 @@
 <div id="toast" class="toast" hidden></div>
 
 <script src="https://accounts.google.com/gsi/client" async defer></script>
-<script src="config.js?v=80"></script>
-<script src="korean-calendar.js?v=80"></script>
-<script src="lunar.js?v=80"></script>
-<script src="drive.js?v=80"></script>
-<script src="homework.js?v=80"></script>
-<script src="meal.js?v=80"></script>
-<script src="kid.js?v=80"></script>
-<script src="app.js?v=80"></script>
+<script src="config.js?v=81"></script>
+<script src="korean-calendar.js?v=81"></script>
+<script src="lunar.js?v=81"></script>
+<script src="drive.js?v=81"></script>
+<script src="homework.js?v=81"></script>
+<script src="meal.js?v=81"></script>
+<script src="kid.js?v=81"></script>
+<script src="app.js?v=81"></script>
 </body>
 </html>

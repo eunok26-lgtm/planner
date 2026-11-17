@@ -23,7 +23,9 @@ let hwData   = null;    // { days: { 'YYYY-MM-DD': [ {id,text,done,rep} ] } }
 let hwRepeat = null;    // { '0'..'6': [ {id,text} ] }
 let hwTimer = 0, hwSaving = false, hwAgain = false;
 
-const emptyHw = () => ({ days: {} });
+/* days : 그 날 실제 목록 / hide : 그 날 빼 둔 반복 항목 (이번 주만 지웠거나 다른 날로 옮긴 것).
+   hide 가 없으면 '이번 주만 지우기' 한 것이 다시 열 때마다 되살아납니다. */
+const emptyHw = () => ({ days: {}, hide: {} });
 const hwKey = mon => 'hw-' + mon + '.json';
 const hwUid = () => 'h' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 
@@ -93,23 +95,47 @@ async function hwPutRepeat(data) {
 
 /* ---------- 매주 반복을 그 주에 찍어내기 ---------- */
 
+/** 그 날 들어가야 할 반복 항목 — 매일 것 + 그 요일 것 */
+const hwRepeatFor = d =>
+  [...((hwRepeat && hwRepeat.all) || []), ...((hwRepeat && hwRepeat[String(d.getDay())]) || [])];
+
 /** 반복 목록에 있는데 그 주에 아직 없는 것을 채워 넣습니다. 채운 게 있으면 true */
 function hwMaterialize(mon) {
   if (!hwData || !hwRepeat) return false;
+  hwData.hide = hwData.hide || {};
   const start = parseYmd(mon);
   let added = false;
   for (let i = 0; i < 7; i++) {
     const d = addDays(start, i), ds = ymd(d);
-    const list = hwRepeat[String(d.getDay())] || [];
+    const list = hwRepeatFor(d);
     if (!list.length) continue;
     const have = hwData.days[ds] || (hwData.days[ds] = []);
+    const off = hwData.hide[ds] || [];
     for (const r of list) {
-      if (have.some(x => x.rep === r.id)) continue;      // 이미 있거나 이번 주에 지운 것
+      if (have.some(x => x.rep === r.id)) continue;      // 이미 들어와 있음
+      if (off.includes(r.id)) continue;                  // 이번 주에 빼 둔 것
       have.push({ id: hwUid(), text: r.text, done: false, rep: r.id });
       added = true;
     }
   }
   return added;
+}
+
+/** 그 날에서 이 반복 항목을 빼 둡니다 (다시 열어도 되살아나지 않게) */
+function hwHide(ds, repId) {
+  if (!repId) return;
+  hwData.hide = hwData.hide || {};
+  const off = hwData.hide[ds] || (hwData.hide[ds] = []);
+  if (!off.includes(repId)) off.push(repId);
+}
+
+/** 반복 틀에서 그 id 가 어느 칸에 있는지 ('all' 또는 '0'~'6') */
+function hwRepeatBucket(repId) {
+  if (!hwRepeat) return null;
+  for (const k of Object.keys(hwRepeat)) {
+    if ((hwRepeat[k] || []).some(x => x.id === repId)) return k;
+  }
+  return null;
 }
 
 /* ---------- 화면 ---------- */
@@ -143,7 +169,8 @@ function renderHw(mon) {
               <span class="hwgrip" aria-hidden="true"></span>
               <button class="hwbox" data-act="toggle" aria-label="끝냄 표시">✓</button>
               <button class="hwtext" data-act="edit">${esc(t.text)}${
-                t.rep ? '<i class="hwrep" title="매주 반복">🔁</i>' : ''}</button>
+                t.rep ? `<i class="hwrep" title="${
+                  hwRepeatBucket(t.rep) === 'all' ? '매일 반복' : '매주 반복'}">🔁</i>` : ''}</button>
             </div>`).join('')
         }</div>
         <button class="hwadd" data-add="${ds}">+ 추가</button>
@@ -218,12 +245,20 @@ function openHwSheet(ds, id) {
   $('#hw-title').textContent = item ? '할 일 고치기' : '할 일 추가';
   $('#hw-when').textContent = `${d.getMonth() + 1}월 ${d.getDate()}일 (${DOW_KR[d.getDay()]})`;
   $('#hw-text').value = item ? item.text : '';
-  $('#hw-rep').checked = !!(item && item.rep);
-  // 이미 반복으로 들어온 것은 여기서 켜고 끄지 않습니다 (지울 때 묻습니다)
-  $('#hw-rep').disabled = !!(item && item.rep);
-  $('#hw-rep-lbl').textContent = (item && item.rep)
-    ? `매주 ${DOW_KR[d.getDay()]}요일마다 반복 중`
-    : `매주 ${DOW_KR[d.getDay()]}요일마다 반복`;
+
+  /* 반복 — 이미 반복으로 들어온 것은 무엇이었는지 보여만 줍니다 (지울 때 묻습니다) */
+  const bucket = item && item.rep ? hwRepeatBucket(item.rep) : null;
+  const sel = $('#hw-rep-mode');
+  sel.innerHTML =
+    '<option value="">반복 안 함</option>' +
+    `<option value="week">매주 ${DOW_KR[d.getDay()]}요일마다</option>` +
+    '<option value="day">매일</option>';
+  sel.value = bucket === 'all' ? 'day' : bucket ? 'week' : '';
+  sel.disabled = !!bucket;
+  $('#hw-rep-note').hidden = !bucket;
+  if (bucket) $('#hw-rep-note').textContent =
+    (bucket === 'all' ? '매일' : `매주 ${DOW_KR[d.getDay()]}요일마다`) +
+    ' 반복 중입니다. 반복을 그만두려면 아래에서 지우세요.';
   $('#hw-del').hidden = !item;
 
   $('#hwsheet').hidden = false;
@@ -236,7 +271,7 @@ async function saveHwSheet() {
   const text = $('#hw-text').value.trim();
   if (!text) { toast('내용을 입력해 주세요'); return; }
   const { ds, id } = hwEditing;
-  const rep = $('#hw-rep').checked && !$('#hw-rep').disabled;
+  const mode = $('#hw-rep-mode').disabled ? '' : $('#hw-rep-mode').value;
   closeHwSheet();
 
   const list = hwData.days[ds] || (hwData.days[ds] = []);
@@ -245,18 +280,20 @@ async function saveHwSheet() {
     if (item) item.text = text;
     // 반복으로 들어온 것은 틀의 내용도 함께 고칩니다
     if (item && item.rep && hwRepeat) {
-      const wd = String(parseYmd(ds).getDay());
-      const r = (hwRepeat[wd] || []).find(x => x.id === item.rep);
+      const k = hwRepeatBucket(item.rep);
+      const r = k && (hwRepeat[k] || []).find(x => x.id === item.rep);
       if (r) { r.text = text; await hwSaveRepeat(); }
     }
-  } else if (rep) {
-    // 매주 반복 — 틀에 넣고, 이번 주에도 한 벌 찍어냅니다
-    const wd = String(parseYmd(ds).getDay());
+  } else if (mode) {
+    // 반복 — 틀에 넣고, 이번 주에도 한 벌 찍어냅니다
+    const k = (mode === 'day') ? 'all' : String(parseYmd(ds).getDay());
     hwRepeat = hwRepeat || {};
     const rid = hwUid();
-    (hwRepeat[wd] = hwRepeat[wd] || []).push({ id: rid, text });
+    (hwRepeat[k] = hwRepeat[k] || []).push({ id: rid, text });
     list.push({ id: hwUid(), text, done: false, rep: rid });
     await hwSaveRepeat();
+    // 매일 반복이면 이번 주 나머지 날에도 바로 채웁니다
+    if (k === 'all') hwMaterialize(hwWeek);
   } else {
     list.push({ id: hwUid(), text, done: false });
   }
@@ -271,27 +308,36 @@ async function deleteHwItem(ds, id) {
   if (!item) return;
 
   let alsoRepeat = false;
+  const bucket = item.rep ? hwRepeatBucket(item.rep) : null;
   if (item.rep) {
-    const pick = await askHwScope();
+    const pick = await askHwScope(bucket === 'all' ? '매일' : '매주');
     if (!pick) return;
     alsoRepeat = (pick === 'all');
   } else if (!confirm('이 할 일을 지울까요?')) return;
 
   hwData.days[ds] = list.filter(t => t.id !== id);
-  if (alsoRepeat && hwRepeat) {
-    const wd = String(parseYmd(ds).getDay());
-    hwRepeat[wd] = (hwRepeat[wd] || []).filter(x => x.id !== item.rep);
+  if (alsoRepeat && hwRepeat && bucket) {
+    hwRepeat[bucket] = (hwRepeat[bucket] || []).filter(x => x.id !== item.rep);
     await hwSaveRepeat();
+    // 매일 반복이면 이번 주 다른 날에 들어와 있는 것도 함께 치웁니다
+    if (bucket === 'all') {
+      for (const k of Object.keys(hwData.days))
+        hwData.days[k] = (hwData.days[k] || []).filter(t => t.rep !== item.rep);
+    }
+  } else if (item.rep) {
+    hwHide(ds, item.rep);          // 이번 주만 — 다시 열어도 되살아나지 않게
   }
   renderHw(parseYmd(hwWeek));
   hwTouch();
-  toast(alsoRepeat ? '매주 반복을 그만두었습니다' : '이번 주에서 지웠습니다');
+  toast(alsoRepeat ? '반복을 그만두었습니다' : '이번 주에서 지웠습니다');
 }
 
-/** '이번 주만' / '매주 반복 그만' 을 묻습니다 */
-function askHwScope() {
+/** '이번 주만' / '반복 그만' 을 묻습니다 */
+function askHwScope(kind = '매주') {
   return new Promise(resolve => {
     const box = $('#hwscope');
+    $('#hs-h').textContent = kind + ' 반복하는 할 일';
+    $('#hs-all').textContent = kind + ' 반복 그만하기';
     box.hidden = false;
     const done = v => { box.hidden = true; box.onclick = null; resolve(v); };
     box.onclick = e => {
@@ -375,9 +421,9 @@ function wireHwDrag() {
     const pool = [...(hwData.days[to] || []).filter(t => t.id !== id), moved];
     hwData.days[to] = order.map(i => pool.find(t => t.id === i)).filter(Boolean);
 
-    /* 다른 요일로 옮겼으면 매주 반복과는 끊습니다 —
-       반복은 '그 요일' 에 매인 것이라, 옮긴 자리에서까지 되살아나면 안 됩니다. */
-    if (from !== to && moved.rep) delete moved.rep;
+    /* 다른 날로 옮겼으면 원래 날에서는 빼 둡니다.
+       이게 없으면 다시 열 때 원래 날에 하나 더 찍혀 둘이 됩니다. */
+    if (from !== to && moved.rep) hwHide(from, moved.rep);
 
     renderHw(parseYmd(hwWeek));
     hwTouch();
