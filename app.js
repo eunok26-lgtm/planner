@@ -1945,8 +1945,9 @@ const PS_HOLES = (() => {
   return h;
 })();
 
-/** 한 주짜리 종이 한 장 */
-function printSheetHTML(monday) {
+/** 한 주짜리 종이 한 장.
+    hwDays 를 주면 그 날 아이 숙제를 네모칸과 함께 아래에 붙입니다. */
+function printSheetHTML(monday, hwDays) {
   const days = Array.from({ length: 7 }, (_, i) => addDays(monday, i));
   const yearFirst = startOfWeek(new Date(monday.getFullYear(), 0, 1), CFG.WEEK_START);
   const weekNo = Math.round((monday - yearFirst) / 604800000) + 1;
@@ -1959,18 +1960,29 @@ function printSheetHTML(monday) {
   const a = days[0], b = days[6];
   const range = `${a.getMonth() + 1}.${pad2(a.getDate())} – ${b.getMonth() + 1}.${pad2(b.getDate())}`;
 
-  const cols = days.map(d => {
+  const rows = days.map(d => {
     const ds = ymd(d);
+    return { d, ds, evs: eventsFor(ds, 'w'), hw: (hwDays && hwDays[ds]) || [] };
+  });
+
+  /* 종이 높이가 정해져 있어서(100mm) 줄이 많으면 잘립니다.
+     그래서 제일 빽빽한 날에 맞춰 줄 높이를 줄입니다 — 기본 8mm, 최소 4.4mm.
+     일곱 칸 모두 같은 줄 수로 그려서 칸마다 줄이 어긋나지 않게 합니다. */
+  const need = Math.max(7, ...rows.map(r => r.evs.length + r.hw.length));
+  const lineMM = Math.max(4.4, Math.min(8, 68 / need));
+
+  const cols = rows.map(({ d, ds, evs, hw }) => {
     const hol = holidayOf(d), term = termOf(d);
     const kind = hol ? 'hol' : (d.getDay() === 0 ? 'sun' : d.getDay() === 6 ? 'sat' : '');
-    const evs = eventsFor(ds, 'w');
     let lines = '';
-    for (let k = 0; k < Math.max(7, evs.length); k++) {
+    for (let k = 0; k < need; k++) {
       const e = evs[k];
-      lines += `<div class="ps-l">${e
-        ? (WCATS.length > 1 ? `<span class="ps-dot ${catCls(catIndexOf(e.cal))}"></span>` : '')
-          + (e.time ? `<span class="ps-t">${e.time}</span>` : '')
-          + `<span class="ps-x">${esc(e.text)}</span>`
+      const h = (k >= evs.length) ? hw[k - evs.length] : null;
+      lines += `<div class="ps-l${h ? ' hw' : ''}">${
+        e ? (WCATS.length > 1 ? `<span class="ps-dot ${catCls(catIndexOf(e.cal))}"></span>` : '')
+            + (e.time ? `<span class="ps-t">${e.time}</span>` : '')
+            + `<span class="ps-x">${esc(e.text)}</span>`
+        : h ? `<span class="ps-box"></span><span class="ps-x">${esc(h.text)}</span>`
         : ''}</div>`;
     }
     return `<div class="ps-col ${kind} ${term && !hol ? 'term' : ''}">
@@ -1982,7 +1994,7 @@ function printSheetHTML(monday) {
       </div>`;
   }).join('');
 
-  return `<section class="psheet">
+  return `<section class="psheet" style="--ps-lh:${lineMM.toFixed(2)}mm">
       <div class="ps-crop tl"></div><div class="ps-crop tr"></div>
       <div class="ps-crop bl"></div><div class="ps-crop br"></div>
       <div class="ps-bind">${PS_HOLES}</div>
@@ -1997,7 +2009,7 @@ function printSheetHTML(monday) {
 }
 
 /** 인쇄할 주들을 미리 불러오고 출력물을 만듭니다. */
-async function buildPrintout(startMonday, count, paper) {
+async function buildPrintout(startMonday, count, paper, withHw) {
   const weeks = Array.from({ length: count }, (_, i) => addDays(startMonday, i * 7));
 
   // 필요한 달을 모두 확보 (다음 달로 넘어가는 주도 있으므로)
@@ -2008,7 +2020,17 @@ async function buildPrintout(startMonday, count, paper) {
     await loadMonth(new Date(y, mo - 1, 1));
   }
 
-  const sheets = weeks.map(printSheetHTML);
+  // 아이 숙제를 함께 찍는 경우, 주마다 그 주 숙제를 불러옵니다
+  const hwOf = {};
+  if (withHw) {
+    for (const m of weeks) {
+      const mk = ymd(m);
+      try { hwOf[mk] = await hwForPrint(mk); }
+      catch (e) { console.error(e); hwOf[mk] = null; }   // 한 주를 못 읽어도 인쇄는 계속합니다
+    }
+  }
+
+  const sheets = weeks.map(m => printSheetHTML(m, withHw ? hwOf[ymd(m)] : null));
   let html = '';
   if (paper === 'a4') {
     for (let i = 0; i < sheets.length; i += 2) {
@@ -2487,6 +2509,12 @@ function wire() {
     const mon = startOfWeek(state.anchor, CFG.WEEK_START);
     $('#pd-note').textContent =
       `${mon.getMonth() + 1}월 ${mon.getDate()}일 주부터 인쇄합니다.`;
+    // 아이 숙제를 쓰고 있을 때만 그 줄을 보여줍니다
+    $('#pd-hw-row').hidden = !HW_ON;
+    if (HW_ON) {
+      const want = localStorage.getItem('planner.print.hw') === '1';
+      $$('#pd-hw button').forEach(b => b.classList.toggle('on', (b.dataset.h === '1') === want));
+    }
     $('#pdlg').hidden = false;
   };
   $('#pd-cancel').onclick = () => { $('#pdlg').hidden = true; };
@@ -2498,12 +2526,15 @@ function wire() {
   };
   $('#pd-weeks').onclick = e => seg('#pd-weeks', e);
   $('#pd-paper').onclick = e => seg('#pd-paper', e);
+  $('#pd-hw').onclick = e => seg('#pd-hw', e);
   $('#pd-go').onclick = () => {
     const n = Number($('#pd-weeks button.on')?.dataset.n || 2);
     const paper = $('#pd-paper button.on')?.dataset.p || 'a4';
+    const withHw = HW_ON && $('#pd-hw button.on')?.dataset.h === '1';
+    localStorage.setItem('planner.print.hw', withHw ? '1' : '0');   // 고른 것을 기억해 둡니다
     $('#pdlg').hidden = true;
     guard(async () => {
-      await buildPrintout(startOfWeek(state.anchor, CFG.WEEK_START), n, paper);
+      await buildPrintout(startOfWeek(state.anchor, CFG.WEEK_START), n, paper, withHw);
       await new Promise(r => setTimeout(r, 120));   // 배치가 잡힌 뒤 인쇄
       window.print();
     }, '인쇄 준비 중…');
@@ -2945,7 +2976,7 @@ async function start() {
 
 /* 요청하는 권한이 바뀌면 예전 로그인으로는 안 되므로 다시 동의를 받습니다.
    (위클리 캘린더를 만들려면 캘린더 관리 권한이 새로 필요해졌습니다) */
-const APP_VERSION = '83';
+const APP_VERSION = '85';
 const SCOPE_VERSION = '3';
 
 async function boot() {

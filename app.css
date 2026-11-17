@@ -744,7 +744,7 @@ body.is-dragging { user-select: none; -webkit-user-select: none; cursor: grabbin
 
   /* 노트 줄 — 8mm x 7줄 */
   .ps-l {
-    height: 8mm; border-bottom: 0.2mm solid #ced5dc;
+    height: var(--ps-lh, 8mm); border-bottom: 0.2mm solid #ced5dc;
     display: flex; align-items: center; gap: 1.2mm;
     font-size: 6.5pt; color: #48525e; overflow: hidden; min-width: 0;
   }
@@ -755,6 +755,13 @@ body.is-dragging { user-select: none; -webkit-user-select: none; cursor: grabbin
   .ps-dot.c4 { background:#c4606c; } .ps-dot.c5 { background:#4f8f96; }
   .ps-dot.cnone { background: none; border: 0.25mm solid #9aa2ab; }
   .ps-x { white-space: nowrap; overflow: hidden; text-overflow: clip; min-width: 0; }
+
+  /* 아이 숙제 — 체크해 가며 쓰도록 네모칸을 둡니다 */
+  .ps-box {
+    width: 2.2mm; height: 2.2mm; flex: 0 0 2.2mm;
+    border: 0.25mm solid #9aa2ab; border-radius: 0.4mm;
+  }
+  .ps-l.hw .ps-x { color: #6b7682; }
 }
 
 /* 더보기 메뉴 아래 버전 표시 */

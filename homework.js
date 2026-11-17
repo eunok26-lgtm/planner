@@ -156,18 +156,20 @@ function hwHealRepeat(mon) {
   return true;
 }
 
-/** 반복 목록에 있는데 그 주에 아직 없는 것을 채워 넣습니다. 채운 게 있으면 true */
-function hwMaterialize(mon) {
-  if (!hwData || !hwRepeat) return false;
-  hwData.hide = hwData.hide || {};
+/** 주어진 주 자료에 반복을 찍어냅니다 (화면에 올라와 있는 주가 아니어도 됩니다).
+    채운 게 있으면 true */
+function hwFillWeek(data, repeat, mon) {
+  if (!data || !repeat) return false;
+  data.days = data.days || {};
+  data.hide = data.hide || {};
   const start = parseYmd(mon);
   let added = false;
   for (let i = 0; i < 7; i++) {
     const d = addDays(start, i), ds = ymd(d);
-    const list = hwRepeatFor(d);
+    const list = [...((repeat.all) || []), ...((repeat[String(d.getDay())]) || [])];
     if (!list.length) continue;
-    const have = hwData.days[ds] || (hwData.days[ds] = []);
-    const off = hwData.hide[ds] || [];
+    const have = data.days[ds] || (data.days[ds] = []);
+    const off = data.hide[ds] || [];
     for (const r of list) {
       if (have.some(x => x.rep === r.id)) continue;      // 이미 들어와 있음
       if (off.includes(r.id)) continue;                  // 이번 주에 빼 둔 것
@@ -176,6 +178,28 @@ function hwMaterialize(mon) {
     }
   }
   return added;
+}
+
+/** 반복 목록에 있는데 그 주에 아직 없는 것을 채워 넣습니다. 채운 게 있으면 true */
+const hwMaterialize = mon => hwFillWeek(hwData, hwRepeat, mon);
+
+/** 인쇄용 — 그 주의 아이 할 일을 읽어 옵니다.
+    아직 열어 본 적 없는 주도 반복을 찍어낸 모습으로 돌려줍니다.
+    보기만 하는 것이라 드라이브에 저장하지는 않습니다.
+    { 'YYYY-MM-DD': [ {text, done} ] } */
+async function hwForPrint(mon) {
+  const data = (mon === hwWeek && hwData)
+    ? JSON.parse(JSON.stringify(hwData))            // 화면에 올라와 있는 주는 그대로
+    : await hwFetchWeek(mon);
+  const rep = hwRepeat || await hwFetchRepeat();
+
+  const stopped = new Set((rep && rep.stopped) || []);
+  if (stopped.size) {
+    for (const ds of Object.keys(data.days))
+      data.days[ds] = (data.days[ds] || []).filter(t => !(t.rep && stopped.has(t.rep)));
+  }
+  hwFillWeek(data, rep, mon);
+  return data.days;
 }
 
 /** 이미 찍혀 있던 주를 지금 틀에 맞춥니다 — 그만둔 것은 빼고, 바뀐 이름은 따라갑니다.
@@ -406,7 +430,14 @@ async function saveHwSheet() {
       // 반복으로 들어온 것은 틀의 내용도 함께 고칩니다
       const k = hwRepeatBucket(item.rep);
       const r = k && (hwRepeat[k] || []).find(x => x.id === item.rep);
-      if (r) { r.text = text; await hwSaveRepeat(); }
+      if (r) {
+        r.text = text;
+        // 같은 반복으로 들어온 그 주의 다른 날도 함께 바꿉니다
+        // (매일 반복이면 이레 전부가 한 반복이라 그 날만 바뀌면 안 됩니다)
+        for (const dd of Object.keys(hwData.days))
+          for (const t of (hwData.days[dd] || [])) if (t.rep === item.rep) t.text = text;
+        await hwSaveRepeat();
+      }
     } else if (!item.rep && mode) {
       // 반복 없이 넣었던 것을 뒤늦게 반복으로 바꾸는 경우
       await startRepeat(item, mode);
