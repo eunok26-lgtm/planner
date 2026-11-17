@@ -1965,24 +1965,38 @@ function printSheetHTML(monday, hwDays) {
     return { d, ds, evs: eventsFor(ds, 'w'), hw: (hwDays && hwDays[ds]) || [] };
   });
 
-  /* 종이 높이가 정해져 있어서(100mm) 줄이 많으면 잘립니다.
-     그래서 제일 빽빽한 날에 맞춰 줄 높이를 줄입니다 — 기본 8mm, 최소 4.4mm.
-     일곱 칸 모두 같은 줄 수로 그려서 칸마다 줄이 어긋나지 않게 합니다. */
-  const need = Math.max(7, ...rows.map(r => r.evs.length + r.hw.length));
-  const lineMM = Math.max(4.4, Math.min(8, 68 / need));
+  /* 숙제는 일정 줄에 섞지 않고 아래에 따로 띠를 만들어 적습니다.
 
-  const cols = rows.map(({ d, ds, evs, hw }) => {
+     종이 높이가 100mm 로 정해져 있어 줄이 많으면 잘립니다. 그래서 제일 빽빽한
+     날에 맞춰 줄 높이를 줄입니다 (기본 8mm). 일곱 칸을 같은 줄 수로 그려
+     칸마다 줄이 어긋나지 않게 합니다.
+
+     종이 100mm 에서 제본 17 · 머리글 11.6 · 날짜칸 9.5 · 아래 여백 5 를 빼면
+     줄이 들어갈 수 있는 높이는 56.8mm 입니다. */
+  const AVAIL = 56.8, MIN_L = 3.6;
+  const hasHw = rows.some(r => r.hw.length);
+  const sepMM = hasHw ? 5.2 : 0;                       // 숙제 띠 머리 (여백 포함)
+  const room = AVAIL - sepMM;
+
+  const evNeed = Math.max(hasHw ? 5 : 7, ...rows.map(r => r.evs.length));
+  let hwNeed = hasHw ? Math.max(...rows.map(r => r.hw.length)) : 0;
+  let lineMM = Math.min(8, room / (evNeed + hwNeed));
+  if (lineMM < MIN_L) {
+    // 너무 빽빽하면 글씨가 못 읽을 만큼 작아지므로, 숙제 줄 수를 줄이고 '외 N개' 로 알립니다
+    lineMM = MIN_L;
+    hwNeed = Math.max(1, Math.floor(room / MIN_L) - evNeed);
+  }
+
+  const cols = rows.map(({ d, ds, evs }) => {
     const hol = holidayOf(d), term = termOf(d);
     const kind = hol ? 'hol' : (d.getDay() === 0 ? 'sun' : d.getDay() === 6 ? 'sat' : '');
     let lines = '';
-    for (let k = 0; k < need; k++) {
+    for (let k = 0; k < evNeed; k++) {
       const e = evs[k];
-      const h = (k >= evs.length) ? hw[k - evs.length] : null;
-      lines += `<div class="ps-l${h ? ' hw' : ''}">${
-        e ? (WCATS.length > 1 ? `<span class="ps-dot ${catCls(catIndexOf(e.cal))}"></span>` : '')
-            + (e.time ? `<span class="ps-t">${e.time}</span>` : '')
-            + `<span class="ps-x">${esc(e.text)}</span>`
-        : h ? `<span class="ps-box"></span><span class="ps-x">${esc(h.text)}</span>`
+      lines += `<div class="ps-l">${e
+        ? (WCATS.length > 1 ? `<span class="ps-dot ${catCls(catIndexOf(e.cal))}"></span>` : '')
+          + (e.time ? `<span class="ps-t">${e.time}</span>` : '')
+          + `<span class="ps-x">${esc(e.text)}</span>`
         : ''}</div>`;
     }
     return `<div class="ps-col ${kind} ${term && !hol ? 'term' : ''}">
@@ -1994,6 +2008,28 @@ function printSheetHTML(monday, hwDays) {
       </div>`;
   }).join('');
 
+  /* 아래쪽 숙제 띠 — 같은 일곱 칸으로 줄을 맞춥니다 */
+  let hwBand = '';
+  if (hasHw) {
+    const hwCols = rows.map(({ d, hw }) => {
+      const kind = holidayOf(d) ? 'hol' : (d.getDay() === 0 ? 'sun' : d.getDay() === 6 ? 'sat' : '');
+      let lines = '';
+      for (let k = 0; k < hwNeed; k++) {
+        // 줄이 모자라면 마지막 줄에 남은 개수를 알려 줍니다 (말없이 사라지지 않게)
+        if (k === hwNeed - 1 && hw.length > hwNeed) {
+          lines += `<div class="ps-l hw more"><span class="ps-x">외 ${hw.length - hwNeed + 1}개</span></div>`;
+          break;
+        }
+        const h = hw[k];
+        lines += `<div class="ps-l hw">${h
+          ? `<span class="ps-box"></span><span class="ps-x">${esc(h.text)}</span>` : ''}</div>`;
+      }
+      return `<div class="ps-col ${kind}">${lines}</div>`;
+    }).join('');
+    hwBand = `<div class="ps-hwsep"><span>숙제</span></div>
+      <div class="ps-week">${hwCols}</div>`;
+  }
+
   return `<section class="psheet" style="--ps-lh:${lineMM.toFixed(2)}mm">
       <div class="ps-crop tl"></div><div class="ps-crop tr"></div>
       <div class="ps-crop bl"></div><div class="ps-crop br"></div>
@@ -2004,7 +2040,7 @@ function printSheetHTML(monday, hwDays) {
         <div class="ps-rng">${range}</div>
         <div class="ps-wk">WEEK ${pad2(weekNo)}</div>
       </div>
-      <div class="ps-week">${cols}</div>
+      <div class="ps-week">${cols}</div>${hwBand}
     </section>`;
 }
 
@@ -2976,7 +3012,7 @@ async function start() {
 
 /* 요청하는 권한이 바뀌면 예전 로그인으로는 안 되므로 다시 동의를 받습니다.
    (위클리 캘린더를 만들려면 캘린더 관리 권한이 새로 필요해졌습니다) */
-const APP_VERSION = '85';
+const APP_VERSION = '86';
 const SCOPE_VERSION = '3';
 
 async function boot() {

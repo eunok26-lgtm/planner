@@ -756,12 +756,20 @@ body.is-dragging { user-select: none; -webkit-user-select: none; cursor: grabbin
   .ps-dot.cnone { background: none; border: 0.25mm solid #9aa2ab; }
   .ps-x { white-space: nowrap; overflow: hidden; text-overflow: clip; min-width: 0; }
 
-  /* 아이 숙제 — 체크해 가며 쓰도록 네모칸을 둡니다 */
+  /* 아이 숙제 — 일정 아래에 따로 띠를 두고, 체크할 네모칸을 둡니다 */
+  .ps-hwsep {
+    flex: 0 0 4.2mm; height: 4.2mm; display: flex; align-items: center;
+    margin-top: 1mm; border-top: 0.45mm solid #77828f;
+  }
+  .ps-hwsep span {
+    font-size: 5.5pt; font-weight: 700; letter-spacing: .14em; color: #8d97a3;
+  }
   .ps-box {
     width: 2.2mm; height: 2.2mm; flex: 0 0 2.2mm;
     border: 0.25mm solid #9aa2ab; border-radius: 0.4mm;
   }
   .ps-l.hw .ps-x { color: #6b7682; }
+  .ps-l.hw.more .ps-x { color: #9aa2ab; font-size: 5.5pt; }
 }
 
 /* 더보기 메뉴 아래 버전 표시 */
