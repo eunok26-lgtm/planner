@@ -1016,3 +1016,77 @@ input:disabled::-webkit-calendar-picker-indicator { opacity: .35; cursor: defaul
   .kd-x { white-space: normal; }
   .kid-bell .kb-val { font-size: 19px; }
 }
+
+/* ============================================================
+   아이 할 일 (위클리 아래, 식단 위)
+   ============================================================ */
+.hw-grid {
+  display: grid; grid-template-columns: repeat(7, minmax(0, 1fr));
+  min-width: 700px;                 /* 위 위클리 칸과 폭을 맞춥니다 */
+}
+.hwcol {
+  border-right: 1px solid var(--line); padding: 0 6px 8px;
+  display: flex; flex-direction: column; gap: 3px; min-width: 0;
+}
+.hwcol:last-child { border-right: none; }
+.hwcol.is-today { background: var(--today); }
+
+.hwday { display: flex; align-items: baseline; gap: 4px; margin-bottom: 2px; }
+.hwday b { font-size: 10px; font-weight: 800; letter-spacing: .1em; color: var(--mute); }
+.hwday span { font-size: 11px; font-weight: 700; color: var(--ink-2); }
+.hwcol.sun .hwday b, .hwcol.sun .hwday span,
+.hwcol.hol .hwday b, .hwcol.hol .hwday span { color: var(--hol); }
+.hwcol.sat .hwday b, .hwcol.sat .hwday span { color: var(--sat); }
+
+.hwlist { display: flex; flex-direction: column; gap: 3px; min-height: 18px; }
+.hwitem {
+  display: flex; align-items: center; gap: 4px; min-width: 0;
+  background: var(--card); border-radius: 7px; box-shadow: var(--shadow);
+  padding: 4px 5px;
+}
+.hwitem.dragging { opacity: .6; box-shadow: 0 6px 18px rgba(40,48,60,.22); }
+/* 끌기 손잡이 — 점 여섯 개 */
+.hwgrip {
+  flex: 0 0 8px; height: 14px; cursor: grab; touch-action: none;
+  background-image: radial-gradient(var(--mute) 1px, transparent 1px);
+  background-size: 4px 4px; background-position: 0 2px; opacity: .75;
+}
+.hwbox {
+  flex: 0 0 15px; width: 15px; height: 15px; border-radius: 4px;
+  border: 1.5px solid var(--line); color: transparent;
+  font-size: 10px; line-height: 1; display: grid; place-items: center;
+}
+.hwtext {
+  flex: 1; min-width: 0; text-align: left; font-size: 11px; line-height: 1.35;
+  color: var(--ink); word-break: break-all;
+}
+.hwrep { font-style: normal; font-size: 9px; margin-left: 3px; opacity: .8; }
+.hwitem.done .hwbox { background: var(--accent); border-color: var(--accent); color: #fff; }
+.hwitem.done .hwtext { color: var(--mute); text-decoration: line-through; }
+
+.hwadd {
+  margin-top: 2px; padding: 4px 0; border-radius: 6px;
+  font-size: 11px; font-weight: 700; color: var(--accent);
+}
+.hwadd:active { background: var(--line); }
+
+/* 폰에서는 요일을 세로로 늘어놓습니다 */
+@media (max-width: 600px) {
+  .hw-grid { grid-template-columns: 1fr; min-width: 0; }
+  .hwcol {
+    border-right: none; border-bottom: 1px solid var(--line);
+    flex-direction: row; flex-wrap: wrap; align-items: flex-start;
+    gap: 4px 7px; padding: 8px 12px;
+  }
+  .hwcol:last-child { border-bottom: none; }
+  .hwday { flex: 0 0 34px; flex-direction: column; gap: 0; margin: 2px 0 0; align-items: center; }
+  .hwday span { font-size: 14px; }
+  .hwlist { flex: 1 1 0; min-width: 0; }
+  .hwitem { padding: 7px 8px; }
+  .hwtext { font-size: 13px; }
+  .hwbox { flex-basis: 18px; width: 18px; height: 18px; font-size: 12px; }
+  .hwadd { flex: 1 1 100%; margin-left: 41px; text-align: left; font-size: 12px; }
+}
+
+/* 인쇄할 때는 화면용 칸을 숨깁니다 */
+@media print { #hw { display: none !important; } }

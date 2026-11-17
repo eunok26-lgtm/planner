@@ -1305,7 +1305,8 @@ function renderWeek() {
       </div>`;
   }
   $('#week-grid').innerHTML = html;
-  renderMeal(mon);                      // 아래쪽 '이번 주 식단'
+  renderHw(mon);                        // 아래쪽 '이번 주 아이 할 일'
+  renderMeal(mon);                      // 그 아래 '이번 주 식단'
 
   // 분류가 둘 이상이면 무슨 색이 무슨 분류인지 알려줍니다
   if (WCATS.length > 1) {
@@ -2508,9 +2509,10 @@ function wire() {
     }, '인쇄 준비 중…');
   };
   $$('.tab').forEach(t => t.onclick = () => {
-    if (state.view === 'week'  && t.dataset.view !== 'week')  mealFlush();
+    if (state.view === 'week' && t.dataset.view !== 'week') { hwFlush(); mealFlush(); }
     showView(t.dataset.view);
   });
+  wireHw();
   wireMeal();
   wireKid();
 
@@ -2943,7 +2945,7 @@ async function start() {
 
 /* 요청하는 권한이 바뀌면 예전 로그인으로는 안 되므로 다시 동의를 받습니다.
    (위클리 캘린더를 만들려면 캘린더 관리 권한이 새로 필요해졌습니다) */
-const APP_VERSION = '79';
+const APP_VERSION = '80';
 const SCOPE_VERSION = '3';
 
 async function boot() {

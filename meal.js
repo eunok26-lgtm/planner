@@ -195,6 +195,7 @@ function wireMeal() {
   $('#mi-settings').onclick = () => {
     $('#menu').hidden = true;
     $('#st-meal').checked = MEAL_ON;
+    $('#st-hw').checked = HW_ON;
     $('#setsheet').hidden = false;
   };
   $('#st-close').onclick = () => { $('#setsheet').hidden = true; };

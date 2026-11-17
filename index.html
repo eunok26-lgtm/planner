@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" href="icons/icon-192.png">
-<link rel="stylesheet" href="app.css?v=79">
+<link rel="stylesheet" href="app.css?v=80">
 <style id="pagerule">@page { size: 297mm 210mm; margin: 0; }</style>
 </head>
 <body>
@@ -69,6 +69,12 @@
       <div class="daychips" id="week-chips"></div>
       <div class="catlegend" id="cat-legend"></div>
       <div class="week-wrap"><div class="week-grid" id="week-grid"></div></div>
+
+      <!-- 아이 할 일 (⋯ → 설정 에서 켜고 끕니다) -->
+      <section class="meal" id="hw" hidden>
+        <h2 class="meal-h">이번 주 아이 할 일</h2>
+        <div class="meal-wrap"><div class="hw-grid" id="hw-grid"></div></div>
+      </section>
 
       <!-- 이번 주 식단 (⋯ → 설정 에서 켜고 끕니다) -->
       <section class="meal" id="meal" hidden>
@@ -283,10 +289,43 @@
       <span style="width:44px"></span>
     </div>
     <label class="calrow">
+      <input id="st-hw" type="checkbox">
+      <span class="calname">위클리에 <b>아이 할 일</b> 보이기
+        <em>요일마다 숙제를 적습니다. 매주 반복도 됩니다</em></span>
+    </label>
+    <label class="calrow">
       <input id="st-meal" type="checkbox">
       <span class="calname">위클리에 <b>주간 식단</b> 보이기
         <em>요일마다 메뉴와 메모를 적습니다</em></span>
     </label>
+  </div>
+</div>
+
+<!-- ============ 아이 할 일 넣기·고치기 ============ -->
+<div id="hwsheet" class="sheet-back" hidden>
+  <div class="sheet-card" role="dialog" aria-modal="true">
+    <div class="sheet-head">
+      <button class="mini ghost" id="hw-cancel">취소</button>
+      <strong id="hw-title">할 일 추가</strong>
+      <button class="mini solid" id="hw-save">저장</button>
+    </div>
+    <p class="fld-note" id="hw-when"></p>
+    <label class="fld"><span>내용</span>
+      <input id="hw-text" type="text" placeholder="예: 수학 익힘책 12쪽" autocomplete="off"></label>
+    <label class="chk"><input id="hw-rep" type="checkbox">
+      <span id="hw-rep-lbl">매주 이 요일마다 반복</span></label>
+    <button class="btn-danger" id="hw-del" hidden>이 할 일 지우기</button>
+  </div>
+</div>
+
+<!-- ============ 아이 할 일 지우는 범위 ============ -->
+<div id="hwscope" class="sheet-back top" hidden>
+  <div class="sheet-card" role="dialog" aria-modal="true">
+    <strong class="ask-h">매주 반복하는 할 일</strong>
+    <p class="ask-p">어디까지 지울까요?</p>
+    <button class="menu-item" data-hs="one">이번 주만 지우기</button>
+    <button class="menu-item" data-hs="all">매주 반복 그만하기</button>
+    <button class="menu-item mute" data-hs="">취소</button>
   </div>
 </div>
 
@@ -371,12 +410,13 @@
 <div id="toast" class="toast" hidden></div>
 
 <script src="https://accounts.google.com/gsi/client" async defer></script>
-<script src="config.js?v=79"></script>
-<script src="korean-calendar.js?v=79"></script>
-<script src="lunar.js?v=79"></script>
-<script src="drive.js?v=79"></script>
-<script src="meal.js?v=79"></script>
-<script src="kid.js?v=79"></script>
-<script src="app.js?v=79"></script>
+<script src="config.js?v=80"></script>
+<script src="korean-calendar.js?v=80"></script>
+<script src="lunar.js?v=80"></script>
+<script src="drive.js?v=80"></script>
+<script src="homework.js?v=80"></script>
+<script src="meal.js?v=80"></script>
+<script src="kid.js?v=80"></script>
+<script src="app.js?v=80"></script>
 </body>
 </html>
