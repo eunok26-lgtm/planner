@@ -178,16 +178,28 @@ function hwMaterialize(mon) {
   return added;
 }
 
-/** 그만둔 반복이 이미 찍혀 있던 주에서도 빠지게 합니다.
+/** 이미 찍혀 있던 주를 지금 틀에 맞춥니다 — 그만둔 것은 빼고, 바뀐 이름은 따라갑니다.
     앞으로의 주만 손봅니다 — 지난 주는 그때 한 기록이라 그대로 둡니다.
-    뺀 게 있으면 true */
+    바뀐 게 있으면 true */
 function hwStripStopped(mon) {
   if (!hwData || !hwRepeat) return false;
-  const stopped = new Set(hwRepeat.stopped || []);
-  if (!stopped.size) return false;
   if (mon < ymd(startOfWeek(new Date(), CFG.WEEK_START))) return false;
 
+  /* 반복 이름이 바뀌었으면 이미 찍혀 있던 것도 따라갑니다 */
+  const names = new Map();
+  for (const k of HW_BUCKETS) for (const r of (hwRepeat[k] || [])) names.set(r.id, r.text);
   let cut = false;
+  for (const ds of Object.keys(hwData.days)) {
+    for (const t of (hwData.days[ds] || [])) {
+      if (t.rep && names.has(t.rep) && t.text !== names.get(t.rep)) {
+        t.text = names.get(t.rep); cut = true;
+      }
+    }
+  }
+
+  const stopped = new Set(hwRepeat.stopped || []);
+  if (!stopped.size) return cut;
+
   for (const ds of Object.keys(hwData.days)) {
     const list = hwData.days[ds] || [];
     const kept = list.filter(t => !(t.rep && stopped.has(t.rep)));
@@ -373,28 +385,38 @@ async function saveHwSheet() {
   const mode = $('#hw-rep-mode').disabled ? '' : $('#hw-rep-mode').value;
   closeHwSheet();
 
-  const list = hwData.days[ds] || (hwData.days[ds] = []);
-  if (id) {
-    const item = list.find(t => t.id === id);
-    if (item) item.text = text;
-    // 반복으로 들어온 것은 틀의 내용도 함께 고칩니다
-    if (item && item.rep && hwRepeat) {
-      const k = hwRepeatBucket(item.rep);
-      const r = k && (hwRepeat[k] || []).find(x => x.id === item.rep);
-      if (r) { r.text = text; await hwSaveRepeat(); }
-    }
-  } else if (mode) {
-    // 반복 — 틀에 넣고, 이번 주에도 한 벌 찍어냅니다
+  /** 이 항목을 반복으로 만들어 틀에 넣습니다 */
+  const startRepeat = async (item, mode) => {
     const k = (mode === 'day') ? 'all' : String(parseYmd(ds).getDay());
     hwRepeat = hwRepeat || {};
     const rid = hwUid();
     (hwRepeat[k] = hwRepeat[k] || []).push({ id: rid, text });
-    list.push({ id: hwUid(), text, done: false, rep: rid });
+    item.rep = rid;
     await hwSaveRepeat();
     // 매일 반복이면 이번 주 나머지 날에도 바로 채웁니다
     if (k === 'all') hwMaterialize(hwWeek);
+  };
+
+  const list = hwData.days[ds] || (hwData.days[ds] = []);
+  if (id) {
+    const item = list.find(t => t.id === id);
+    if (!item) { renderHw(parseYmd(hwWeek)); return; }
+    item.text = text;
+    if (item.rep && hwRepeat) {
+      // 반복으로 들어온 것은 틀의 내용도 함께 고칩니다
+      const k = hwRepeatBucket(item.rep);
+      const r = k && (hwRepeat[k] || []).find(x => x.id === item.rep);
+      if (r) { r.text = text; await hwSaveRepeat(); }
+    } else if (!item.rep && mode) {
+      // 반복 없이 넣었던 것을 뒤늦게 반복으로 바꾸는 경우
+      await startRepeat(item, mode);
+      toast(mode === 'day' ? '매일 반복으로 바꿨습니다'
+                           : `매주 ${DOW_KR[parseYmd(ds).getDay()]}요일마다 반복으로 바꿨습니다`);
+    }
   } else {
-    list.push({ id: hwUid(), text, done: false });
+    const item = { id: hwUid(), text, done: false };
+    list.push(item);
+    if (mode) await startRepeat(item, mode);
   }
   renderHw(parseYmd(hwWeek));
   hwTouch();
